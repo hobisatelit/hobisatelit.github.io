@@ -1,1 +1,12 @@
+<script>
+const map = {
+  "/iq": "https://1024terabox.com/s/1XKPKv37vj0EC2acZ3qwZ7Q",
+  "/about": "about.htm"
+};
+const dest = map[location.pathname];
+if (dest) location.replace(dest);
+else document.body.textContent = "Not found";
+</script>
+
+
 roger! your 59! 
