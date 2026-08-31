@@ -1,0 +1,876 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>TLE Simulator - learn and simulate TLE in an easy way</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #070a13;
+    --bg-raise: #0d1120;
+    --panel: #10152a;
+    --line: rgba(130,170,255,0.16);
+    --line-soft: rgba(130,170,255,0.08);
+    --text: #dfe7f5;
+    --text-dim: #8592ab;
+    --text-faint: #576079;
+    --accent: #56d6ff;
+    --accent-dim: rgba(86,214,255,0.35);
+    --amber: #ffb454;
+    --track: #35e6b0;
+    --danger: #ff7a90;
+    --radius: 3px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Space Grotesk', system-ui, sans-serif;
+    font-size: 15px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  .mono{ font-family: 'IBM Plex Mono', ui-monospace, monospace; }
+
+  #app{ max-width: 780px; margin: 0 auto; padding-bottom: 48px; }
+
+  header{
+    padding: 22px 16px 14px;
+    border-bottom: 1px solid var(--line);
+  }
+  header h1{
+    margin:0 0 4px;
+    font-size: 21px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+  }
+  header p{
+    margin:0;
+    color: var(--text-dim);
+    font-size: 13.5px;
+    max-width: 46ch;
+  }
+
+  .section{
+    padding: 18px 16px;
+    border-bottom: 1px solid var(--line);
+  }
+  .section-title{
+    display:flex;
+    align-items:baseline;
+    gap:9px;
+    margin: 0 0 4px;
+  }
+  .section-title .bar{
+    width:3px; height:14px;
+    background: var(--accent);
+    display:inline-block;
+    border-radius:2px;
+    flex-shrink:0;
+  }
+  .section-title h2{
+    margin:0;
+    font-size:15px;
+    font-weight:600;
+  }
+  .section-sub{
+    color: var(--text-dim);
+    font-size: 12.5px;
+    margin: 0 0 12px 12px;
+  }
+
+  /* ---------- 3D viewport ---------- */
+  #viewport-wrap{
+    position: relative;
+    width: 100%;
+    height: 300px;
+    background: radial-gradient(ellipse at 50% 30%, #0e1830 0%, #05070f 75%);
+    border-radius: var(--radius);
+    overflow: hidden;
+    touch-action: none;
+  }
+  #three-canvas{ display:block; width:100%; height:100%; }
+  .hud{
+    position:absolute;
+    pointer-events:none;
+    font-family:'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: var(--text);
+    background: rgba(7,10,19,0.55);
+    padding: 6px 8px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    line-height:1.55;
+  }
+  .hud b{ color:var(--accent); font-weight:600; }
+  .hud-tl{ top:8px; left:8px; }
+  .hud-tr{ top:8px; right:8px; text-align:right; }
+  .drag-hint{
+    position:absolute; bottom:8px; left:50%; transform:translateX(-50%);
+    font-size:10.5px; color: var(--text-faint);
+    pointer-events:none;
+  }
+  .viewport-controls{
+    display:flex; gap:8px; margin-top:10px; flex-wrap:wrap; align-items:center;
+  }
+
+  /* ---------- buttons ---------- */
+  button{
+    font-family:'Space Grotesk', sans-serif;
+    background: var(--panel);
+    color: var(--text);
+    border: 1px solid var(--line);
+    padding: 7px 12px;
+    border-radius: var(--radius);
+    font-size: 13px;
+    cursor:pointer;
+  }
+  button:active{ background: var(--bg-raise); }
+  button.primary{
+    border-color: var(--accent-dim);
+    color: var(--accent);
+  }
+  button.chip{
+    font-size:12.5px;
+    padding:6px 11px;
+    white-space:nowrap;
+  }
+  button.chip.active{
+    background: rgba(86,214,255,0.12);
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+  #speed-label{ font-size:12.5px; color:var(--text-dim); margin-left:2px; }
+
+  /* ---------- presets ---------- */
+  #preset-row{
+    display:flex; gap:8px; overflow-x:auto; padding-bottom:4px;
+    -webkit-overflow-scrolling: touch;
+  }
+  #preset-row::-webkit-scrollbar{ height:0; }
+
+  /* ---------- ground track ---------- */
+  #groundtrack-wrap{ position:relative; width:100%; }
+  #gt-canvas{ display:block; width:100%; height:170px; border-radius: var(--radius); }
+  .gt-legend{
+    display:flex; gap:16px; margin-top:8px; font-size:12px; color:var(--text-dim);
+  }
+  .gt-legend span{ display:inline-flex; align-items:center; gap:5px; }
+  .dot{ width:8px; height:8px; border-radius:50%; display:inline-block; }
+
+  /* ---------- TLE readout ---------- */
+  #tle-box{
+    background: var(--bg-raise);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 12px 14px;
+    font-size: 12px;
+    line-height:1.8;
+    overflow-x:auto;
+    white-space:pre;
+    color: var(--track);
+  }
+  #tle-box .l1{ color: var(--accent); }
+
+  /* ---------- controls ---------- */
+  .control-row{
+    padding: 14px 0;
+    border-top: 1px solid var(--line-soft);
+  }
+  .control-row:first-child{ border-top:none; padding-top:4px; }
+  .control-head{
+    display:flex; justify-content:space-between; align-items:baseline; gap:10px;
+    margin-bottom:3px;
+  }
+  .control-head label{ font-weight:600; font-size:14px; }
+  .control-head .val{
+    font-family:'IBM Plex Mono', monospace;
+    color: var(--accent);
+    font-size: 13.5px;
+    white-space:nowrap;
+  }
+  .control-desc{
+    color: var(--text-dim);
+    font-size: 12.8px;
+    margin: 0 0 10px;
+    max-width: 62ch;
+  }
+  .control-desc .note{ color: var(--text-faint); }
+  input[type=range]{
+    -webkit-appearance:none; appearance:none;
+    width:100%; height:28px;
+    background:transparent;
+    margin:0;
+  }
+  input[type=range]::-webkit-slider-runnable-track{
+    height:4px; background: var(--line); border-radius:2px;
+  }
+  input[type=range]::-webkit-slider-thumb{
+    -webkit-appearance:none;
+    width:18px; height:18px; margin-top:-7px;
+    border-radius:50%;
+    background: var(--accent);
+    border: 3px solid #05070f;
+    box-shadow: 0 0 0 1px var(--accent-dim);
+  }
+  input[type=range]::-moz-range-track{
+    height:4px; background: var(--line); border-radius:2px;
+  }
+  input[type=range]::-moz-range-thumb{
+    width:12px; height:12px; border-radius:50%;
+    background: var(--accent); border:3px solid #05070f;
+  }
+
+  /* ---------- glossary ---------- */
+  details{ border-top: 1px solid var(--line-soft); padding: 12px 0; }
+  details:first-of-type{ border-top:none; }
+  summary{
+    cursor:pointer; font-weight:600; font-size:14px;
+    list-style: none;
+  }
+  summary::-webkit-details-marker{ display:none; }
+  summary::before{
+    content:'+ ';
+    color: var(--accent);
+    font-family:'IBM Plex Mono',monospace;
+  }
+  details[open] summary::before{ content:'– '; }
+  details p, details li{ color: var(--text-dim); font-size: 13px; }
+  details p{ margin: 8px 0; }
+
+  footer{
+    padding: 16px; text-align:center; color: var(--text-faint); font-size:11.5px;
+  }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <header>
+    <h1>TLE Simulator</h1>
+    <p>Adjust the six numbers that describe a satellite in a real Two-Line Element (TLE) set, and watch the orbit and ground track respond in real time.</p>
+  </header>
+
+  <!-- 3D VIEW -->
+  <div class="section">
+    <div id="viewport-wrap">
+      <canvas id="three-canvas"></canvas>
+      <div class="hud hud-tl" id="hud-orbit"></div>
+      <div class="hud hud-tr" id="hud-live"></div>
+      <div class="drag-hint">drag to rotate · pinch or scroll to zoom</div>
+    </div>
+    <div class="viewport-controls">
+      <button class="primary" id="btn-play">Pause</button>
+      <button id="btn-reset-track">Reset track</button>
+      <input type="range" id="speed" min="0" max="4" step="1" value="2" style="width:110px;">
+      <span id="speed-label">speed: ×300</span>
+    </div>
+  </div>
+
+  <!-- PRESETS -->
+  <div class="section">
+    <div class="section-title"><span class="bar"></span><h2>Start from a real mission type</h2></div>
+    <p class="section-sub">Each button loads a full set of TLE-style values. Then tweak the sliders below.</p>
+    <div id="preset-row"></div>
+  </div>
+
+  <!-- GROUND TRACK -->
+  <div class="section">
+    <div class="section-title"><span class="bar"></span><h2>Ground track</h2></div>
+    <p class="section-sub">The path traced on Earth's surface directly beneath the satellite as it orbits and the planet spins underneath it.</p>
+    <div id="groundtrack-wrap">
+      <canvas id="gt-canvas"></canvas>
+    </div>
+    <div class="gt-legend">
+      <span><span class="dot" style="background:var(--track);"></span>ground track</span>
+      <span><span class="dot" style="background:var(--accent);"></span>satellite now</span>
+    </div>
+  </div>
+
+  <!-- TLE READOUT -->
+  <div class="section">
+    <div class="section-title"><span class="bar"></span><h2>Your satellite, as a real TLE</h2></div>
+    <p class="section-sub">This is what your six values look like in the compact format NORAD actually publishes. Made-up catalog number — this isn't a real tracked object.</p>
+    <div id="tle-box" class="mono"></div>
+  </div>
+
+  <!-- CONTROLS -->
+  <div class="section">
+    <div class="section-title"><span class="bar"></span><h2>The six numbers</h2></div>
+    <p class="section-sub">These fully define the size, shape, tilt, and orientation of the orbit.</p>
+
+    <div class="control-row">
+      <div class="control-head"><label>Inclination</label><span class="val mono" id="v-incl"></span></div>
+      <p class="control-desc">How tilted the orbit is compared to Earth's equator. 0° hugs the equator; 90° passes over the poles. <span class="note">Higher inclination = more of the globe gets overflown.</span></p>
+      <input type="range" id="incl" min="0" max="180" step="0.1">
+    </div>
+
+    <div class="control-row">
+      <div class="control-head"><label>RAAN (ascending node)</label><span class="val mono" id="v-raan"></span></div>
+      <p class="control-desc">RAAN <em>is</em> the ascending node — same setting, two names. It swings the entire orbital ring around Earth's axis, like spinning a hula-hoop, fixed against the distant stars rather than against the ground below.</p>
+      <input type="range" id="raan" min="0" max="360" step="0.1">
+    </div>
+
+    <div class="control-row">
+      <div class="control-head"><label>Eccentricity</label><span class="val mono" id="v-ecc"></span></div>
+      <p class="control-desc">How stretched the oval is. 0 is a perfect circle; closer to 1 is a long ellipse that swings from very close to Earth to very far away.</p>
+      <input type="range" id="ecc" min="0" max="0.9" step="0.001">
+    </div>
+
+    <div class="control-row">
+      <div class="control-head"><label>Argument of perigee</label><span class="val mono" id="v-argp"></span></div>
+      <p class="control-desc">Once the ring is tilted and aimed (inclination + RAAN), this says where along that ring the closest point to Earth sits.</p>
+      <input type="range" id="argp" min="0" max="360" step="0.1">
+    </div>
+
+    <div class="control-row">
+      <div class="control-head"><label>Mean anomaly</label><span class="val mono" id="v-ma"></span></div>
+      <p class="control-desc">Where the satellite starts along its orbit, as an angle rather than a clock time. 0° places it right at perigee.</p>
+      <input type="range" id="ma" min="0" max="360" step="0.1">
+    </div>
+
+    <div class="control-row">
+      <div class="control-head"><label>Mean motion</label><span class="val mono" id="v-mm"></span></div>
+      <p class="control-desc">Orbits completed per day. Low, fast orbits near Earth do many per day (the ISS: about 15.5); far, slow orbits do few (geostationary: exactly 1). <span class="note">Altitude and period below are calculated from this, not set directly — that's how real TLEs work too.</span></p>
+      <input type="range" id="mm" min="1" max="17" step="0.01">
+    </div>
+  </div>
+
+  <!-- GLOSSARY -->
+  <div class="section">
+    <div class="section-title"><span class="bar"></span><h2>Background</h2></div>
+
+    <details open>
+      <summary>What's actually in a TLE?</summary>
+      <p>A Two-Line Element set is a compact, fixed-width text format — two lines of about 69 characters each — that organizations like NORAD publish so anyone can predict where a satellite will be. It encodes exactly the six numbers above, plus a timestamp called the <b>epoch</b> (the moment the numbers are valid for — orbits drift, so TLEs go stale after days to weeks) and a drag term called <b>BSTAR</b> that describes how much atmospheric drag is slowing the satellite down over time.</p>
+      <p>This simulator generates a realistic-looking TLE from your sliders (see the box above) but treats BSTAR as zero and epoch as a fixed snapshot, so orbits here never decay.</p>
+    </details>
+
+    <details>
+      <summary>How accurate is the physics here?</summary>
+      <p>Positions are computed with real two-body orbital mechanics: your six numbers are converted to a size and shape (via Kepler's equation), then rotated into 3D space and spun beneath a rotating Earth to build the ground track. That's genuine orbital math, not a canned animation.</p>
+      <p>What's left out: real satellite trackers use a model called SGP4, which adds corrections for Earth's slightly flattened shape, atmospheric drag, and other small forces. Those cause real orbits to slowly precess and decay — effects you won't see here.</p>
+    </details>
+
+    <details>
+      <summary>Quick reference</summary>
+      <p><b>Perigee</b> — closest point to Earth in the orbit. <b>Apogee</b> — farthest point. <b>LEO</b> (low Earth orbit) — roughly 160–2,000 km up, where the ISS and most imaging satellites fly. <b>MEO</b> — GPS-type orbits. <b>GEO</b> (geostationary) — about 35,786 km up, where the orbit period matches Earth's rotation so the satellite appears to hang over one spot.</p>
+    </details>
+  </div>
+
+  <footer>Educational two-body simulation · not for navigation or real satellite tracking</footer>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+/* =========================================================================
+   ORBIT LAB — self-contained TLE-style orbital simulator
+   Sections: constants -> world map data -> orbital mechanics -> three.js
+   scene -> camera controls -> ground track canvas -> UI wiring -> loop
+   ========================================================================= */
+
+'use strict';
+
+/* ---------------- constants ---------------- */
+const MU = 398600.4418;              // Earth's gravitational parameter, km^3/s^2
+const EARTH_R_KM = 6371;             // Earth mean radius, km
+const EARTH_ROT_RATE = 7.2921159e-5; // Earth sidereal rotation rate, rad/s
+const EARTH_R_SCENE = 2;             // Earth radius in 3D scene units
+const SCENE_SCALE = EARTH_R_SCENE / EARTH_R_KM;
+
+/* ---------------- simplified world map (equirectangular polygons) ------- */
+const CONTINENTS = [
+  [[-165,68],[-165,60],[-150,60],[-140,60],[-130,55],[-125,48],[-124,40],[-115,28],[-110,23],[-105,20],[-97,18],[-97,26],[-82,24],[-80,26],[-75,35],[-74,40],[-70,42],[-60,45],[-52,47],[-55,50],[-65,60],[-80,73],[-95,73],[-130,70],[-150,70],[-165,68]],
+  [[-80,10],[-77,8],[-70,1],[-60,5],[-50,0],[-35,-5],[-35,-10],[-40,-20],[-48,-25],[-58,-35],[-62,-40],[-68,-45],[-70,-52],[-75,-52],[-73,-45],[-71,-30],[-71,-18],[-75,-15],[-80,-5],[-80,10]],
+  [[-10,36],[-9,43],[-2,43],[0,46],[5,43],[8,44],[13,45],[19,42],[23,40],[28,41],[30,45],[28,50],[30,55],[20,55],[15,55],[10,54],[5,51],[0,51],[-5,49],[-8,48],[-10,43],[-10,36]],
+  [[28,41],[35,37],[45,40],[50,45],[55,50],[60,55],[70,55],[80,50],[90,50],[100,52],[110,50],[120,45],[130,45],[140,45],[142,50],[160,60],[170,65],[180,68],[180,70],[150,72],[120,73],[100,75],[80,73],[60,70],[50,68],[45,65],[40,66],[35,66],[30,60],[28,50],[28,41]],
+  [[68,24],[72,20],[75,15],[78,10],[80,8],[82,15],[88,22],[90,25],[85,27],[78,30],[72,30],[68,24]],
+  [[95,20],[100,20],[105,22],[109,23],[108,15],[104,12],[102,7],[100,6],[98,8],[95,15],[95,20]],
+  [[-10,36],[0,37],[10,37],[20,32],[25,32],[32,31],[35,28],[35,20],[43,12],[51,12],[45,5],[40,0],[42,-5],[40,-15],[35,-20],[35,-26],[28,-33],[20,-34],[18,-33],[14,-22],[12,-15],[9,5],[-5,5],[-10,10],[-17,15],[-16,20],[-10,30],[-10,36]],
+  [[113,-22],[120,-20],[129,-15],[135,-12],[142,-11],[145,-16],[150,-22],[153,-28],[150,-34],[145,-38],[140,-38],[137,-35],[132,-32],[128,-32],[122,-34],[115,-34],[113,-26],[113,-22]],
+  [[-45,60],[-40,65],[-30,70],[-25,75],[-30,80],[-45,82],[-55,75],[-55,68],[-48,62],[-45,60]],
+  [[130,32],[133,34],[140,36],[142,40],[140,44],[135,38],[131,34],[130,32]],
+  [[43,-12],[47,-13],[50,-17],[47,-25],[44,-22],[43,-16],[43,-12]],
+  [[-8,51],[-5,50],[-2,51],[1,53],[-3,58],[-6,57],[-8,55],[-8,51]],
+  [[166,-45],[169,-44],[174,-41],[176,-38],[173,-40],[171,-43],[166,-45]]
+];
+
+function lonLatToXY(lon, lat, w, h){
+  return [ (lon+180)/360*w, (90-lat)/180*h ];
+}
+
+function drawWorldMap(ctx, w, h){
+  ctx.fillStyle = '#0a1c33';
+  ctx.fillRect(0,0,w,h);
+  // subtle graticule
+  ctx.strokeStyle = 'rgba(120,170,255,0.10)';
+  ctx.lineWidth = 1;
+  for(let lon=-180; lon<=180; lon+=30){
+    const [x] = lonLatToXY(lon,0,w,h);
+    ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,h); ctx.stroke();
+  }
+  for(let lat=-60; lat<=60; lat+=30){
+    const [,y] = lonLatToXY(0,lat,w,h);
+    ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(w,y); ctx.stroke();
+  }
+  // equator, brighter
+  ctx.strokeStyle = 'rgba(120,170,255,0.28)';
+  const [,eqY] = lonLatToXY(0,0,w,h);
+  ctx.beginPath(); ctx.moveTo(0,eqY); ctx.lineTo(w,eqY); ctx.stroke();
+
+  ctx.fillStyle = '#1c3d2c';
+  // antarctica band
+  const [,antY] = lonLatToXY(0,-63,w,h);
+  ctx.fillRect(0, antY, w, h-antY);
+  CONTINENTS.forEach(poly=>{
+    ctx.beginPath();
+    poly.forEach(([lon,lat],idx)=>{
+      const [x,y] = lonLatToXY(lon,lat,w,h);
+      if(idx===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+    });
+    ctx.closePath();
+    ctx.fill();
+  });
+}
+
+/* ---------------- orbital mechanics ---------------- */
+function deg2rad(d){ return d*Math.PI/180; }
+function rad2deg(r){ return r*180/Math.PI; }
+function norm360(d){ return ((d%360)+360)%360; }
+function clamp(v,a,b){ return Math.min(b, Math.max(a,v)); }
+
+function solveKepler(M, e){
+  let E = M;
+  for(let k=0;k<40;k++){
+    const dE = (E - e*Math.sin(E) - M) / (1 - e*Math.cos(E));
+    E -= dE;
+    if(Math.abs(dE) < 1e-10) break;
+  }
+  return E;
+}
+
+// Returns ECI position (km) for given classical elements at a given mean anomaly (deg)
+function elementsToECI(a, e, iDeg, raanDeg, argpDeg, MDeg){
+  const i = deg2rad(iDeg), O = deg2rad(raanDeg), w = deg2rad(argpDeg);
+  const M = deg2rad(norm360(MDeg));
+  const E = solveKepler(M, e);
+  const xPf = a*(Math.cos(E) - e);
+  const yPf = a*Math.sqrt(1-e*e)*Math.sin(E);
+  const r = a*(1 - e*Math.cos(E));
+
+  const cosO=Math.cos(O), sinO=Math.sin(O);
+  const cosI=Math.cos(i), sinI=Math.sin(i);
+  const cosW=Math.cos(w), sinW=Math.sin(w);
+
+  const x = (cosO*cosW - sinO*sinW*cosI)*xPf + (-cosO*sinW - sinO*cosW*cosI)*yPf;
+  const y = (sinO*cosW + cosO*sinW*cosI)*xPf + (-sinO*sinW + cosO*cosW*cosI)*yPf;
+  const z = (sinW*sinI)*xPf + (cosW*sinI)*yPf;
+  return {x,y,z,r};
+}
+
+function eciToScene(p){
+  return new THREE.Vector3(p.x*SCENE_SCALE, p.z*SCENE_SCALE, -p.y*SCENE_SCALE);
+}
+
+// TLE checksum: sum of digits, '-' counts as 1, everything else 0; mod 10
+function tleChecksum(line){
+  let sum = 0;
+  for(const ch of line){
+    if(ch >= '0' && ch <= '9') sum += ch.charCodeAt(0)-48;
+    else if(ch === '-') sum += 1;
+  }
+  return sum % 10;
+}
+function padL(s,n){ s=String(s); while(s.length<n) s=' '+s; return s; }
+function padR(s,n){ s=String(s); while(s.length<n) s=s+' '; return s; }
+function padZ(s,n){ s=String(s); while(s.length<n) s='0'+s; return s; }
+
+function buildTLE(state){
+  const now = new Date();
+  const yr = now.getUTCFullYear() % 100;
+  const start = Date.UTC(now.getUTCFullYear(),0,1);
+  const doy = (now.getTime()-start)/86400000 + 1;
+  const epoch = padZ(yr,2) + padL(doy.toFixed(8), 12);
+
+  const l1body = '1 99999U 40931A   ' + epoch + '  .00000000  00000-0  00000-0 0  001';
+  const l1 = l1body + tleChecksum(l1body);
+
+  const incl = padL(state.i.toFixed(4), 8);
+  const raan = padL(state.raan.toFixed(4), 8);
+  const ecc  = padZ(Math.round(state.e*1e7), 7);
+  const argp = padL(state.argp.toFixed(4), 8);
+  const ma   = padL(state.ma.toFixed(4), 8);
+  const mm   = padL(state.n0.toFixed(8), 11);
+  const l2body = '2 99999 ' + incl + ' ' + raan + ' ' + ecc + ' ' + argp + ' ' + ma + ' ' + mm + '  001';
+  const l2 = l2body + tleChecksum(l2body);
+  return l1 + '\n' + l2;
+}
+
+/* ---------------- state ---------------- */
+const state = { i:51.6, raan:120, e:0.0007, argp:90, ma:0, n0:15.5, a:0, nRad:0 };
+let simTime = 0;
+let playing = true;
+let groundTrack = [];
+const SPEED_STEPS = [30, 100, 300, 1000, 3000];
+let speedIdx = 2;
+
+const PRESETS = [
+  { name:'ISS (LEO)',        i:51.6, raan:120, e:0.0007, argp:90,  ma:0, n0:15.5 },
+  { name:'IO86 (LEO)',   i:6.0006, raan:158.1389, e:0.0012733, argp:338.8432,  ma:353.2145, n0:14.79 },
+  { name:'GPS (MEO)',        i:55,   raan:60,  e:0.01,   argp:0,   ma:0, n0:2.0 },
+  { name:'Geostationary',    i:0.05, raan:0,   e:0.0002, argp:0,   ma:0, n0:1.0027 },
+  { name:'Molniya',          i:63.4, raan:0,   e:0.72,   argp:270, ma:0, n0:2.0 },
+  { name:'Sun-sync polar',   i:98,   raan:0,   e:0.001,  argp:0,   ma:0, n0:14.2 },
+  { name:'Simple polar',     i:90,   raan:0,   e:0,      argp:0,   ma:0, n0:14.5 }
+];
+
+/* ---------------- three.js scene ---------------- */
+const canvas = document.getElementById('three-canvas');
+const wrap = document.getElementById('viewport-wrap');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias:true, alpha:true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio||1, 2));
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 1000);
+
+scene.add(new THREE.AmbientLight(0x8899bb, 0.55));
+const sunLight = new THREE.DirectionalLight(0xffffff, 1.1);
+sunLight.position.set(5,3,4);
+scene.add(sunLight);
+
+// starfield
+(function(){
+  const N = 900;
+  const pos = new Float32Array(N*3);
+  for(let k=0;k<N;k++){
+    const r = 40 + Math.random()*60;
+    const th = Math.random()*Math.PI*2, ph = Math.acos(2*Math.random()-1);
+    pos[k*3]   = r*Math.sin(ph)*Math.cos(th);
+    pos[k*3+1] = r*Math.cos(ph);
+    pos[k*3+2] = r*Math.sin(ph)*Math.sin(th);
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos,3));
+  const mat = new THREE.PointsMaterial({ color:0xaabbdd, size:0.06, sizeAttenuation:true });
+  scene.add(new THREE.Points(geo, mat));
+})();
+
+// earth texture (generated, no network dependency)
+const texCanvas = document.createElement('canvas');
+texCanvas.width = 1024; texCanvas.height = 512;
+drawWorldMap(texCanvas.getContext('2d'), texCanvas.width, texCanvas.height);
+const earthTexture = new THREE.CanvasTexture(texCanvas);
+earthTexture.needsUpdate = true;
+
+const earthMesh = new THREE.Mesh(
+  new THREE.SphereGeometry(EARTH_R_SCENE, 64, 64),
+  new THREE.MeshPhongMaterial({ map: earthTexture, shininess: 4, specular: 0x223344 })
+);
+scene.add(earthMesh);
+
+// equatorial reference ring
+(function(){
+  const pts = [];
+  for(let k=0;k<=128;k++){
+    const a = k/128*Math.PI*2;
+    pts.push(new THREE.Vector3(Math.cos(a)*EARTH_R_SCENE*1.001, 0, Math.sin(a)*EARTH_R_SCENE*1.001));
+  }
+  const geo = new THREE.BufferGeometry().setFromPoints(pts);
+  const mat = new THREE.LineBasicMaterial({ color:0x3a5578, transparent:true, opacity:0.6 });
+  scene.add(new THREE.Line(geo, mat));
+})();
+
+// orbit path line
+const orbitLine = new THREE.Line(
+  new THREE.BufferGeometry(),
+  new THREE.LineBasicMaterial({ color:0x56d6ff })
+);
+scene.add(orbitLine);
+
+function markerSphere(color, size){
+  return new THREE.Mesh(new THREE.SphereGeometry(size,16,16), new THREE.MeshBasicMaterial({ color }));
+}
+const perigeeMarker = markerSphere(0xffb454, 0.045);
+const apogeeMarker  = markerSphere(0xff7a90, 0.045);
+const satMesh       = markerSphere(0x56d6ff, 0.06);
+const satGlow = new THREE.PointLight(0x56d6ff, 0.8, 3);
+satMesh.add(satGlow);
+scene.add(perigeeMarker, apogeeMarker, satMesh);
+
+/* ---------------- camera drag/pinch controls ---------------- */
+const camState = { theta: 0.7, phi: 1.15, radius: 8.5 };
+function updateCamera(){
+  camera.position.set(
+    camState.radius*Math.sin(camState.phi)*Math.sin(camState.theta),
+    camState.radius*Math.cos(camState.phi),
+    camState.radius*Math.sin(camState.phi)*Math.cos(camState.theta)
+  );
+  camera.lookAt(0,0,0);
+}
+updateCamera();
+
+const pointers = new Map();
+let lastPinchDist = null;
+canvas.style.touchAction = 'none';
+canvas.addEventListener('pointerdown', e=>{
+  canvas.setPointerCapture(e.pointerId);
+  pointers.set(e.pointerId, {x:e.clientX, y:e.clientY});
+});
+canvas.addEventListener('pointermove', e=>{
+  if(!pointers.has(e.pointerId)) return;
+  const prev = pointers.get(e.pointerId);
+  const cur = {x:e.clientX, y:e.clientY};
+  pointers.set(e.pointerId, cur);
+  if(pointers.size === 1){
+    const dx = cur.x-prev.x, dy = cur.y-prev.y;
+    camState.theta -= dx*0.007;
+    camState.phi = clamp(camState.phi - dy*0.007, 0.2, Math.PI-0.2);
+    updateCamera();
+  } else if(pointers.size === 2){
+    const pts = Array.from(pointers.values());
+    const dist = Math.hypot(pts[0].x-pts[1].x, pts[0].y-pts[1].y);
+    if(lastPinchDist != null){
+      camState.radius = clamp(camState.radius + (lastPinchDist-dist)*0.02, 4, 24);
+      updateCamera();
+    }
+    lastPinchDist = dist;
+  }
+});
+function releasePointer(e){ pointers.delete(e.pointerId); lastPinchDist=null; }
+canvas.addEventListener('pointerup', releasePointer);
+canvas.addEventListener('pointercancel', releasePointer);
+canvas.addEventListener('pointerleave', releasePointer);
+canvas.addEventListener('wheel', e=>{
+  e.preventDefault();
+  camState.radius = clamp(camState.radius + e.deltaY*0.012, 4, 24);
+  updateCamera();
+}, { passive:false });
+
+function resizeThree(){
+  const w = wrap.clientWidth, h = wrap.clientHeight;
+  renderer.setSize(w,h,false);
+  camera.aspect = w/h;
+  camera.updateProjectionMatrix();
+}
+window.addEventListener('resize', ()=>{ resizeThree(); resizeGT(); });
+
+/* ---------------- ground track canvas ---------------- */
+const gtCanvas = document.getElementById('gt-canvas');
+const gtCtx = gtCanvas.getContext('2d');
+let gtBase = null; // pre-rendered map at device resolution
+
+function resizeGT(){
+  const w = gtCanvas.clientWidth, h = gtCanvas.clientHeight;
+  const dpr = Math.min(window.devicePixelRatio||1, 2);
+  gtCanvas.width = w*dpr; gtCanvas.height = h*dpr;
+  gtBase = document.createElement('canvas');
+  gtBase.width = gtCanvas.width; gtBase.height = gtCanvas.height;
+  drawWorldMap(gtBase.getContext('2d'), gtBase.width, gtBase.height);
+  drawGroundTrack();
+}
+
+function drawGroundTrack(){
+  if(!gtBase) return;
+  gtCtx.drawImage(gtBase, 0,0);
+  const w = gtCanvas.width, h = gtCanvas.height;
+  gtCtx.strokeStyle = '#35e6b0';
+  gtCtx.lineWidth = Math.max(1.4, w*0.0022);
+  gtCtx.beginPath();
+  let started = false, prevX = null;
+  for(let k=0;k<groundTrack.length;k++){
+    const [lon,lat] = groundTrack[k];
+    const [x,y] = lonLatToXY(lon,lat,w,h);
+    if(!started || (prevX!=null && Math.abs(x-prevX) > w*0.5)){
+      gtCtx.moveTo(x,y); started = true;
+    } else {
+      gtCtx.lineTo(x,y);
+    }
+    prevX = x;
+  }
+  gtCtx.stroke();
+  if(groundTrack.length){
+    const [lon,lat] = groundTrack[groundTrack.length-1];
+    const [x,y] = lonLatToXY(lon,lat,w,h);
+    gtCtx.fillStyle = '#56d6ff';
+    gtCtx.beginPath(); gtCtx.arc(x,y,Math.max(2.5,w*0.006),0,Math.PI*2); gtCtx.fill();
+  }
+}
+
+/* ---------------- orbit recompute (on any slider change) ---------------- */
+function fmtHMS(totalSec){
+  totalSec = Math.round(totalSec);
+  const h = Math.floor(totalSec/3600);
+  const m = Math.floor((totalSec%3600)/60);
+  const s = totalSec%60;
+  return padZ(h,2)+':'+padZ(m,2)+':'+padZ(s,2);
+}
+
+let periodSec = 0, altApo = 0, altPeri = 0;
+
+function recompute(){
+  state.nRad = state.n0 * 2*Math.PI/86400;
+  state.a = Math.cbrt(MU/(state.nRad*state.nRad));
+  periodSec = 2*Math.PI/state.nRad;
+  altApo  = state.a*(1+state.e) - EARTH_R_KM;
+  altPeri = state.a*(1-state.e) - EARTH_R_KM;
+
+  const pts = [];
+  for(let k=0;k<=160;k++){
+    const Mk = k/160*360;
+    pts.push(eciToScene(elementsToECI(state.a, state.e, state.i, state.raan, state.argp, Mk)));
+  }
+  orbitLine.geometry.dispose();
+  orbitLine.geometry = new THREE.BufferGeometry().setFromPoints(pts);
+
+  perigeeMarker.position.copy(eciToScene(elementsToECI(state.a,state.e,state.i,state.raan,state.argp,0)));
+  apogeeMarker.position.copy(eciToScene(elementsToECI(state.a,state.e,state.i,state.raan,state.argp,180)));
+
+  simTime = 0;
+  groundTrack = [];
+  earthMesh.rotation.y = 0;
+
+  document.getElementById('hud-orbit').innerHTML =
+    'period <b>'+fmtHMS(periodSec)+'</b><br>perigee alt <b>'+altPeri.toFixed(0)+' km</b><br>apogee alt <b>'+altApo.toFixed(0)+' km</b>';
+
+  document.getElementById('tle-box').innerHTML =
+    buildTLE(state).split('\n').map((l,idx)=> '<span class="'+(idx===0?'l1':'l2')+'">'+l+'</span>').join('\n');
+
+  drawGroundTrack();
+}
+
+/* ---------------- UI wiring ---------------- */
+const sliders = {
+  incl: document.getElementById('incl'),
+  raan: document.getElementById('raan'),
+  ecc:  document.getElementById('ecc'),
+  argp: document.getElementById('argp'),
+  ma:   document.getElementById('ma'),
+  mm:   document.getElementById('mm')
+};
+const vals = {
+  incl: document.getElementById('v-incl'),
+  raan: document.getElementById('v-raan'),
+  ecc:  document.getElementById('v-ecc'),
+  argp: document.getElementById('v-argp'),
+  ma:   document.getElementById('v-ma'),
+  mm:   document.getElementById('v-mm')
+};
+
+function syncFromState(){
+  sliders.incl.value = state.i;
+  sliders.raan.value = state.raan;
+  sliders.ecc.value  = state.e;
+  sliders.argp.value = state.argp;
+  sliders.ma.value   = state.ma;
+  sliders.mm.value   = state.n0;
+  refreshLabels();
+}
+function refreshLabels(){
+  vals.incl.textContent = parseFloat(sliders.incl.value).toFixed(1)+'°';
+  vals.raan.textContent = parseFloat(sliders.raan.value).toFixed(1)+'°';
+  vals.ecc.textContent  = parseFloat(sliders.ecc.value).toFixed(3);
+  vals.argp.textContent = parseFloat(sliders.argp.value).toFixed(1)+'°';
+  vals.ma.textContent   = parseFloat(sliders.ma.value).toFixed(1)+'°';
+  vals.mm.textContent   = parseFloat(sliders.mm.value).toFixed(2)+' rev/day';
+}
+function onSliderInput(){
+  state.i    = parseFloat(sliders.incl.value);
+  state.raan = parseFloat(sliders.raan.value);
+  state.e    = parseFloat(sliders.ecc.value);
+  state.argp = parseFloat(sliders.argp.value);
+  state.ma   = parseFloat(sliders.ma.value);
+  state.n0   = parseFloat(sliders.mm.value);
+  refreshLabels();
+  recompute();
+}
+Object.values(sliders).forEach(s=> s.addEventListener('input', onSliderInput));
+
+// presets
+const presetRow = document.getElementById('preset-row');
+PRESETS.forEach((p,idx)=>{
+  const b = document.createElement('button');
+  b.className = 'chip' + (idx===0 ? ' active' : '');
+  b.textContent = p.name;
+  b.addEventListener('click', ()=>{
+    Array.from(presetRow.children).forEach(c=>c.classList.remove('active'));
+    b.classList.add('active');
+    state.i=p.i; state.raan=p.raan; state.e=p.e; state.argp=p.argp; state.ma=p.ma; state.n0=p.n0;
+    syncFromState();
+    recompute();
+  });
+  presetRow.appendChild(b);
+});
+
+// play/pause + reset + speed
+const btnPlay = document.getElementById('btn-play');
+btnPlay.addEventListener('click', ()=>{
+  playing = !playing;
+  btnPlay.textContent = playing ? 'Pause' : 'Play';
+});
+document.getElementById('btn-reset-track').addEventListener('click', ()=>{
+  groundTrack = []; simTime = 0; earthMesh.rotation.y = 0; drawGroundTrack();
+});
+const speedSlider = document.getElementById('speed');
+const speedLabel = document.getElementById('speed-label');
+speedSlider.addEventListener('input', ()=>{
+  speedIdx = parseInt(speedSlider.value,10);
+  speedLabel.textContent = 'speed: ×'+SPEED_STEPS[speedIdx];
+});
+
+/* ---------------- animation loop ---------------- */
+let lastT = performance.now();
+let telemAccum = 0;
+
+function animate(now){
+  requestAnimationFrame(animate);
+  const dtReal = Math.min((now-lastT)/1000, 0.25);
+  lastT = now;
+
+  if(playing){
+    const dtSim = dtReal * SPEED_STEPS[speedIdx];
+    simTime += dtSim;
+
+    const Mdeg = state.ma + rad2deg(state.nRad*simTime);
+    const pos = elementsToECI(state.a, state.e, state.i, state.raan, state.argp, Mdeg);
+    satMesh.position.copy(eciToScene(pos));
+
+    const theta = EARTH_ROT_RATE * simTime;
+    earthMesh.rotation.y = theta;
+
+    const r = Math.sqrt(pos.x*pos.x + pos.y*pos.y + pos.z*pos.z);
+    const cosT = Math.cos(theta), sinT = Math.sin(theta);
+    const xE = pos.x*cosT + pos.y*sinT;
+    const yE = -pos.x*sinT + pos.y*cosT;
+    const lat = rad2deg(Math.asin(clamp(pos.z/r,-1,1)));
+    const lon = rad2deg(Math.atan2(yE, xE));
+    groundTrack.push([lon,lat]);
+    if(groundTrack.length > 6000) groundTrack.shift();
+
+    telemAccum += dtReal;
+    if(telemAccum > 0.12){
+      telemAccum = 0;
+      const alt = r - EARTH_R_KM;
+      const speed = Math.sqrt(MU*(2/r - 1/state.a));
+      document.getElementById('hud-live').innerHTML =
+        'alt <b>'+alt.toFixed(0)+' km</b><br>speed <b>'+speed.toFixed(2)+' km/s</b><br>lat/lon <b>'+lat.toFixed(1)+'°, '+lon.toFixed(1)+'°</b>';
+      drawGroundTrack();
+    }
+  }
+
+  renderer.render(scene, camera);
+}
+
+/* ---------------- init ---------------- */
+syncFromState();
+resizeThree();
+resizeGT();
+recompute();
+speedLabel.textContent = 'speed: ×'+SPEED_STEPS[speedIdx];
+requestAnimationFrame(animate);
+
+</script>
+</body>
+</html>
