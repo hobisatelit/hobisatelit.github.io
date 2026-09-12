@@ -1,0 +1,1390 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>TLE Compare — multi-satellite orbit comparison</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#070a13; --bg-raise:#0d1120; --panel:#10152a;
+    --line:rgba(130,170,255,0.16); --line-soft:rgba(130,170,255,0.08);
+    --text:#dfe7f5; --text-dim:#8592ab; --text-faint:#576079;
+    --accent:#56d6ff; --accent-dim:rgba(86,214,255,0.6);
+    --radius:3px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{ background:var(--bg); color:var(--text); font-family:'Space Grotesk',system-ui,sans-serif; font-size:15px; line-height:1.5; -webkit-font-smoothing:antialiased; }
+  .mono{ font-family:'IBM Plex Mono', ui-monospace, monospace; }
+  #app{ max-width:90%; margin:0 auto; }
+
+  /* sticky: globe + ground track together */
+  #sticky-header{ position:sticky; top:0; z-index:30; background:var(--bg); border-bottom:1px solid var(--line); padding:10px 14px 10px; }
+  .topbar{ display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; }
+  .topbar h1{ margin:0; font-size:16.5px; font-weight:700; letter-spacing:-0.01em; }
+  .topbar .sub{ font-size:11px; color:var(--text-faint); }
+
+  #viewport-wrap{ position:relative; width:100%; aspect-ratio:16/10; max-height:300px; min-height:140px; background:radial-gradient(ellipse at 50% 30%, #0e1830 0%, #05070f 75%); border-radius:var(--radius); overflow:hidden; touch-action:none; }
+  #three-canvas{ display:block; width:100%; height:100%; }
+  .hud{ position:absolute; pointer-events:none; font-family:'IBM Plex Mono',monospace; font-size:10px; color:var(--text); background:rgba(7,10,19,0.55); padding:4px 6px; border:1px solid var(--line); border-radius:var(--radius); line-height:1.5; max-width:60%; }
+  .hud-tl{ top:6px; left:6px; }
+  .drag-hint{ position:absolute; bottom:4px; left:50%; transform:translateX(-50%); font-size:9.5px; color:var(--text-faint); pointer-events:none; text-align:center; line-height:1.5; width:92%; }
+  .map-note{
+    position:absolute; bottom:5px; left:50%; transform:translateX(-50%);
+    background:rgba(7,10,19,0.85); color:var(--text); border:1px solid var(--line);
+    border-radius:var(--radius); font-size:10.5px; padding:5px 9px; max-width:88%;
+    text-align:center; display:none; pointer-events:none; z-index:5;
+  }
+  .reset-view-btn{ position:absolute; top:6px; right:6px; pointer-events:auto; font-size:10px; padding:4px 7px; }
+  .fullscreen-btn{ position:absolute; top:34px; right:6px; pointer-events:auto; font-size:13px; padding:4px 8px; line-height:1; }
+  #viewport-wrap.is-fullscreen{
+    position:fixed !important; inset:0; z-index:1000; width:100vw !important;
+    height:100vh !important; height:100dvh !important; max-height:none !important;
+    aspect-ratio:auto !important; border-radius:0;
+  }
+
+  .viewport-controls{ display:flex; gap:7px; margin-top:8px; flex-wrap:wrap; align-items:center; }
+  .time-row{ display:flex; gap:7px; align-items:center; margin-top:7px; flex-wrap:wrap; }
+  .time-row .mini-title{ white-space:nowrap; }
+  #time-input{
+    background:var(--panel); color:var(--accent); border:1px solid var(--line); border-radius:var(--radius);
+    font-family:'IBM Plex Mono',monospace; font-size:11.5px; padding:5px 6px; flex:1; min-width:170px;
+  }
+  #time-input:focus{ outline:none; border-color:var(--accent); }
+  .time-hint{ font-size:9.5px; color:var(--text-faint); margin-top:3px; }
+  button{ font-family:'Space Grotesk',sans-serif; background:var(--panel); color:var(--text); border:1px solid var(--line); padding:6px 11px; border-radius:var(--radius); font-size:12.5px; cursor:pointer; }
+  button:active{ background:var(--bg-raise); }
+  button.primary{ border-color:var(--accent-dim); color:var(--accent); }
+  button.chip{ font-size:12px; padding:6px 10px; white-space:nowrap; }
+  #speed-label{ font-size:12px; color:var(--text-dim); margin-left:2px; }
+
+  .sticky-subpanel{ margin-top:7px; padding-top:6px; border-top:1px solid var(--line-soft); position:relative; }
+  .mini-title-row{ display:flex; align-items:center; justify-content:space-between; margin-bottom:4px; }
+  .mini-title{ font-size:11.5px; font-weight:600; color:var(--text); }
+  #gt-wrap{ position:relative; width:100%; height:150px; touch-action:none; }
+  #gt-canvas{ display:block; width:100%; height:100%; border-radius:var(--radius); touch-action:none; }
+  #gt-wrap.is-fullscreen{
+    position:fixed !important; inset:0; z-index:1000; width:100vw !important;
+    height:100vh !important; height:100dvh !important; background:#05070f;
+  }
+  #gt-wrap.is-fullscreen #gt-canvas{ border-radius:0; }
+  .gt-hint{ font-size:9.5px; color:var(--text-faint); margin-top:3px; }
+
+  /* scroll content */
+  #scroll-content{ padding-bottom:40px; }
+  .intro{ padding:14px 16px 4px; color:var(--text-dim); font-size:13px; max-width:48ch; }
+  .section{ padding:16px 16px; border-bottom:1px solid var(--line); }
+  .section h2{ margin:0 0 4px; font-size:15px; font-weight:600; display:flex; align-items:baseline; gap:9px; }
+  .section h2::before{ content:''; width:3px; height:14px; background:var(--accent); display:inline-block; border-radius:2px; }
+  .section-sub{ color:var(--text-dim); font-size:12.5px; margin:0 0 12px 12px; }
+
+  textarea#tle-input{
+    width:100%; min-height:168px; resize:vertical;
+    background:var(--bg-raise); color:var(--text); border:1px solid var(--line); border-radius:var(--radius);
+    font-family:'IBM Plex Mono',monospace; font-size:12px; padding:9px 10px; line-height:1.6;
+  }
+  textarea#tle-input:focus{ outline:none; border-color:var(--accent); }
+  .add-row{ display:flex; align-items:center; gap:10px; margin-top:8px; flex-wrap:wrap; }
+  #add-error{ font-size:12px; color:#ff7a90; }
+  #example-row{ display:flex; gap:8px; margin-top:10px; flex-wrap:wrap; }
+
+  #sat-list{ display:flex; flex-direction:column; gap:10px; }
+  .sat-card{ border:1px solid var(--line); border-radius:var(--radius); background:var(--bg-raise); overflow:hidden; }
+  .sat-head{ display:flex; align-items:center; gap:8px; padding:9px 10px; }
+  .sat-dot{ width:11px; height:11px; border-radius:50%; flex-shrink:0; }
+  .sat-name{
+    flex:1; min-width:0; background:transparent; border:none; color:var(--text); font-family:'Space Grotesk',sans-serif;
+    font-size:13.5px; font-weight:600; padding:3px 4px; border-radius:var(--radius);
+  }
+  .sat-name:focus{ outline:none; background:var(--panel); }
+  .sat-meta{ font-size:10.5px; color:var(--text-dim); font-family:'IBM Plex Mono',monospace; white-space:nowrap; }
+  .sat-remove{ padding:4px 8px; font-size:14px; line-height:1; border-color:rgba(255,122,144,0.4); color:#ff7a90; }
+  .sat-body{ padding:2px 10px 10px; border-top:1px solid var(--line-soft); }
+  .sat-toggle{ width:100%; text-align:left; background:transparent; border:none; color:var(--accent); font-size:12px; padding:7px 10px; cursor:pointer; }
+
+  .control-row{ padding:9px 0; border-top:1px solid var(--line-soft); }
+  .control-row:first-child{ border-top:none; }
+  .control-head{ display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:5px; flex-wrap:wrap; row-gap:4px; }
+  .control-head label{ font-weight:600; font-size:12.5px; min-width:0; }
+  .input-group{ display:flex; align-items:center; gap:5px; flex-shrink:0; margin-left:auto; }
+  .numbox{ width:104px; text-align:right; background:var(--panel); color:var(--accent); border:1px solid var(--line); border-radius:var(--radius); font-family:'IBM Plex Mono',monospace; font-size:12px; padding:4px 5px; }
+  .numbox:focus{ outline:none; border-color:var(--accent); }
+  .unit{ color:var(--text-dim); font-size:11px; min-width:10px; }
+  input[type=range]{ -webkit-appearance:none; appearance:none; width:100%; height:24px; background:transparent; margin:0; }
+  input[type=range]::-webkit-slider-runnable-track{ height:4px; background:var(--line); border-radius:2px; }
+  input[type=range]::-webkit-slider-thumb{ -webkit-appearance:none; width:16px; height:16px; margin-top:-6px; border-radius:50%; background:var(--sat-color, var(--accent)); border:3px solid #05070f; box-shadow:0 0 0 1px var(--accent-dim); }
+  input[type=range]::-moz-range-track{ height:4px; background:var(--line); border-radius:2px; }
+  input[type=range]::-moz-range-thumb{ width:11px; height:11px; border-radius:50%; background:var(--sat-color, var(--accent)); border:3px solid #05070f; }
+
+  .tle-box{ background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:8px 9px; font-size:10px; line-height:1.7; overflow-x:auto; white-space:pre; color:var(--sat-color,var(--accent)); margin-top:6px; }
+
+  details.gloss{ border-top:1px solid var(--line-soft); padding:12px 0; }
+  details.gloss:first-of-type{ border-top:none; }
+  details.gloss summary{ cursor:pointer; font-weight:600; font-size:14px; list-style:none; }
+  details.gloss summary::-webkit-details-marker{ display:none; }
+  details.gloss summary::before{ content:'+ '; color:var(--accent); font-family:'IBM Plex Mono',monospace; }
+  details.gloss[open] summary::before{ content:'– '; }
+  details.gloss p{ margin:8px 0; color:var(--text-dim); font-size:13px; }
+
+  footer{ padding:16px; text-align:center; color:var(--text-faint); font-size:11.5px; }
+  .empty-hint{ color:var(--text-faint); font-size:12.5px; padding:8px 0; }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <div id="sticky-header">
+    <div class="topbar">
+      <h1>TLE Compare</h1>
+      <span class="sub">globe + ground track, always in view</span>
+    </div>
+
+    <div id="viewport-wrap">
+      <canvas id="three-canvas"></canvas>
+      <div class="hud hud-tl" id="hud-globe"></div>
+      <button class="reset-view-btn" id="btn-reset-cam">Reset view</button>
+      <button class="fullscreen-btn" id="btn-fullscreen-globe">&#9974;</button>
+      <div class="drag-hint">drag to rotate · pinch or scroll to zoom in close<br>bright = orbit now · faint = orbit at epoch</div>
+    </div>
+
+    <div class="viewport-controls">
+      <button class="primary" id="btn-play">Pause</button>
+      <button id="btn-reset-tracks">Reset all tracks</button>
+      <input type="range" id="speed" min="0" max="6" step="1" value="0" style="width:95px;">
+      <span id="speed-label"></span>
+      <button id="btn-map-mode">Real map</button>
+      <button id="btn-night-mode">Disable night</button>
+    </div>
+
+    <div class="time-row">
+      <span class="mini-title">Current time (UTC)</span>
+      <input type="datetime-local" id="time-input" step="1">
+      <button id="btn-time-now">Now</button>
+    </div>
+    <div class="time-hint">Positions use real SGP4 propagation. Accuracy drops the further this is from each satellite's TLE epoch, and further still for deep-space orbits (GPS/GEO/Molniya-class) — see "About" below.</div>
+
+    <div class="sticky-subpanel">
+      <div class="mini-title-row">
+        <span class="mini-title">Ground track</span>
+      </div>
+      <div id="gt-wrap">
+        <canvas id="gt-canvas"></canvas>
+        <button class="reset-view-btn" id="btn-reset-gt">Reset view</button>
+        <button class="fullscreen-btn gt-fs-btn" id="btn-fullscreen-gt">&#9974;</button>
+      </div>
+      <div class="gt-hint">drag to pan · pinch or scroll to zoom in on where tracks diverge</div>
+    </div>
+  </div>
+
+  <div id="scroll-content">
+    <p class="intro">Paste real TLE data for two or more satellites, give each a color and name, then zoom in until you can see exactly where their orbits and ground tracks differ.</p>
+
+    <div class="section">
+      <h2>Add satellites</h2>
+      <p class="section-sub">Paste one TLE or a whole batch at once — name + two data lines, repeated as many times as you like (exactly as published, e.g. from Celestrak). Bare 2-line pairs with no name work too.</p>
+      <textarea id="tle-input" placeholder="ISS (ZARYA)
+1 25544U 98067A   26133.42450843  .00004829  00000+0  95080-4 0  9993
+2 25544  51.6310 112.1825 0007522  54.1994 305.9693 15.49203550566361
+
+SAMPLE SAT 2
+1 33591U 09005A   26133.50000000  .00000090  00000+0  67000-4 0  9995
+2 33591  99.1930 120.0000 0013000  90.0000 270.2000 14.12345678900012
+
+...paste as many as you want, one after another"></textarea>
+      <div class="add-row">
+        <button class="primary" id="btn-add-tle">Add satellite(s)</button>
+        <span id="add-error"></span>
+      </div>
+      <div id="example-row">
+        <button class="chip" id="ex-iss">+ ISS example (real, LEO)</button>
+        <button class="chip" id="ex-gps">+ GPS example (MEO)</button>
+        <button class="chip" id="ex-geo">+ Geostationary example</button>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>Satellites (<span id="sat-count">0</span>)</h2>
+      <p class="section-sub">Tap a satellite to adjust its six orbital elements plus BSTAR drag. Each stays in its own color on the globe and ground track above.</p>
+      <div id="sat-list"></div>
+      <div class="empty-hint" id="empty-hint">No satellites yet — paste a TLE above or tap an example.</div>
+    </div>
+
+    <div class="section">
+      <h2>About this comparison tool</h2>
+      <details class="gloss">
+        <summary>Is this real satellite tracking?</summary>
+        <p>Yes, for most satellites. Positions now come from SGP4 — the actual propagator NORAD's TLEs are built for, the same model used by Celestrak, N2YO, and most tracking software. It's implemented here from scratch and checked against a published reference case (a real ISS TLE propagated to a known time), matching the official result to within a few meters.</p>
+        <p>BSTAR is a genuine SGP4 input, not a bolt-on effect — realistic drag values now produce realistic decay (an ISS-like BSTAR loses roughly a tenth of a kilometer of altitude per day here, in line with real-world figures) because it falls straight out of the same equations NORAD uses.</p>
+      </details>
+      <details class="gloss">
+        <summary>Where does it fall short of full accuracy?</summary>
+        <p>SGP4 actually splits into two models: itself for satellites with orbital periods under 225 minutes (almost all LEO objects — ISS, Starlink, most imaging and CubeSats), and a companion deep-space model, SDP4, for anything slower (GPS, geostationary, Molniya, and similar). SDP4 adds lunar and solar gravity plus resonance corrections that near-earth SGP4 doesn't include.</p>
+        <p>This tool implements SGP4 only. Deep-space satellites are still propagated with real J2/J4 gravity and drag physics — far closer than simple two-body math — but without those lunar-solar and resonance terms, so expect growing drift over multi-day predictions for that class of orbit. Cards for those satellites are marked "deep-space regime" in their stats.</p>
+      </details>
+      <details class="gloss">
+        <summary>What's being compared, exactly?</summary>
+        <p>Each satellite keeps its own real TLE epoch — nothing is fast-forwarded or approximated to line elements up. The globe, ground track, and current-time control all share one clock, so what you're seeing is genuinely how these orbits relate to each other at that real moment, computed independently for each satellite and never chained together as a single animation.</p>
+      </details>
+      <details class="gloss">
+        <summary>Why are there two orbit rings on the globe?</summary>
+        <p>The faint ring is fixed — the orbital plane exactly as it was at epoch, for reference. The bright ring is live: it uses the plane's actual current RAAN, argument of perigee, semi-major axis, and eccentricity, all pulled straight out of SGP4's perturbation math at whatever moment the current-time field is set to.</p>
+        <p>Play forward (especially sped up) and watch the bright ring swing away from the faint one — that's real nodal regression, the westward drift of where an orbit crosses the equator caused by Earth's slight equatorial bulge (J2). A satellite's inclination barely drifts this way, so it's carried over unchanged, but RAAN and argument of perigee can shift by several degrees a day for a typical LEO orbit. Each satellite's card also shows its RAAN drift since epoch as a number.</p>
+      </details>
+    </div>
+
+    <footer>Real SGP4 propagation (near-earth) · deep-space orbits (GPS/GEO/Molniya-class) have reduced accuracy · not a certified navigation tool</footer>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+'use strict';
+
+/* ============================== constants ============================== */
+const MU = 398600.4418;
+const EARTH_R_KM = 6371;
+const EARTH_R_SCENE = 2;
+const SCENE_SCALE = EARTH_R_SCENE / EARTH_R_KM;
+let simClockMs = Date.now(); // the moment in time currently being simulated; can be advanced by playback or set directly by the user
+let mapMode = 'illustrated'; // 'illustrated' (procedural) or 'real' (loaded imagery)
+
+/* ============================== world map ============================== */
+const CONTINENTS = [
+  [[-165,68],[-165,60],[-150,60],[-140,60],[-130,55],[-125,48],[-124,40],[-115,28],[-110,23],[-105,20],[-97,18],[-97,26],[-82,24],[-80,26],[-75,35],[-74,40],[-70,42],[-60,45],[-52,47],[-55,50],[-65,60],[-80,73],[-95,73],[-130,70],[-150,70],[-165,68]],
+  [[-80,10],[-77,8],[-70,1],[-60,5],[-50,0],[-35,-5],[-35,-10],[-40,-20],[-48,-25],[-58,-35],[-62,-40],[-68,-45],[-70,-52],[-75,-52],[-73,-45],[-71,-30],[-71,-18],[-75,-15],[-80,-5],[-80,10]],
+  [[-10,36],[-9,43],[-2,43],[0,46],[5,43],[8,44],[13,45],[19,42],[23,40],[28,41],[30,45],[28,50],[30,55],[20,55],[15,55],[10,54],[5,51],[0,51],[-5,49],[-8,48],[-10,43],[-10,36]],
+  [[28,41],[35,37],[45,40],[50,45],[55,50],[60,55],[70,55],[80,50],[90,50],[100,52],[110,50],[120,45],[130,45],[140,45],[142,50],[160,60],[170,65],[180,68],[180,70],[150,72],[120,73],[100,75],[80,73],[60,70],[50,68],[45,65],[40,66],[35,66],[30,60],[28,50],[28,41]],
+  [[68,24],[72,20],[75,15],[78,10],[80,8],[82,15],[88,22],[90,25],[85,27],[78,30],[72,30],[68,24]],
+  [[75,40],[80,45],[90,45],[100,45],[110,45],[120,44],[125,42],[130,43],[129,38],[126,35],[124,34],[122,31],[121,29],[118,26],[113,23],[108,21],[105,23],[102,22],[100,25],[98,28],[92,29],[85,32],[80,35],[75,40]],
+  [[92,28],[98,28],[100,25],[102,22],[105,23],[108,21],[109,12],[107,9],[105,10],[104,8],[103,5],[103,1.5],[101,2.5],[100,5],[99,7],[98,10],[99,13],[98,16],[97,19],[94,21],[92,24],[92,28]],
+  [[95.5,5.5],[97,4],[99,2],[101,0],[103,-2],[104.5,-3.5],[105.8,-5.2],[104,-4],[101.5,-2],[99,0.5],[97,2.5],[95.5,5.5]],
+  [[105.5,-6.3],[108,-6.5],[110,-7],[112,-7.7],[114,-8],[114.5,-8.3],[112,-8],[109,-7],[106,-6.3],[105.5,-6.3]],
+  [[109,7.3],[113,6.5],[117,5],[119,3],[118.5,0],[117,-2.5],[114,-4],[111.5,-3],[109.5,-1],[108.8,2],[109,7.3]],
+  [[119.5,1],[121,0.5],[122.5,-1],[123.5,-2.5],[123,-4.5],[121.5,-5.5],[120,-4],[119,-2.5],[119,-0.5],[119.5,1]],
+  [[120.3,18.5],[122,18.3],[122.2,16.5],[121.5,14.5],[120.5,13],[119.8,15],[120,17],[120.3,18.5]],
+  [[122,10],[124,10.5],[126,9],[126.3,7],[125,5.8],[123,6.2],[122,7.5],[121.8,9],[122,10]],
+  [[131,-1.5],[135,-2],[141,-2.5],[145,-5],[150,-6.5],[150.8,-9.5],[147,-9.5],[144,-8],[139,-7],[134,-4],[131,-1.5]],
+  [[-10,36],[0,37],[10,37],[20,32],[25,32],[32,31],[35,28],[35,20],[43,12],[51,12],[45,5],[40,0],[42,-5],[40,-15],[35,-20],[35,-26],[28,-33],[20,-34],[18,-33],[14,-22],[12,-15],[9,5],[-5,5],[-10,10],[-17,15],[-16,20],[-10,30],[-10,36]],
+  [[113,-22],[120,-20],[129,-15],[135,-12],[142,-11],[145,-16],[150,-22],[153,-28],[150,-34],[145,-38],[140,-38],[137,-35],[132,-32],[128,-32],[122,-34],[115,-34],[113,-26],[113,-22]],
+  [[-45,60],[-40,65],[-30,70],[-25,75],[-30,80],[-45,82],[-55,75],[-55,68],[-48,62],[-45,60]],
+  [[130,32],[133,34],[140,36],[142,40],[140,44],[135,38],[131,34],[130,32]],
+  [[43,-12],[47,-13],[50,-17],[47,-25],[44,-22],[43,-16],[43,-12]],
+  [[-8,51],[-5,50],[-2,51],[1,53],[-3,58],[-6,57],[-8,55],[-8,51]],
+  [[166,-45],[169,-44],[174,-41],[176,-38],[173,-40],[171,-43],[166,-45]]
+];
+function lonLatToXY(lon,lat,w,h){ return [ (lon+180)/360*w, (90-lat)/180*h ]; }
+
+function niceStep(spanDeg){
+  const target = spanDeg/6;
+  const steps = [30,20,10,5,2,1,0.5,0.2,0.1,0.05,0.02,0.01,0.005];
+  for(const s of steps){ if(s<=target) return s; }
+  return 0.005;
+}
+
+// generic world-map drawer: projectFn(lon,lat) -> [x,y]; lonSpan/latSpan used to pick graticule density
+function drawWorldMapGeneric(ctx, w, h, projectFn, lonSpan, latSpan){
+  ctx.fillStyle = '#0a1c33'; ctx.fillRect(0,0,w,h);
+  const stepLon = niceStep(lonSpan), stepLat = niceStep(latSpan);
+  ctx.strokeStyle = 'rgba(120,170,255,0.10)'; ctx.lineWidth = 1;
+  const lonStart = Math.ceil(-180/stepLon)*stepLon;
+  for(let lon=lonStart; lon<=180; lon+=stepLon){
+    const [x0] = projectFn(lon,-89.9); const [x1] = projectFn(lon,89.9);
+    ctx.beginPath(); ctx.moveTo(x0, projectFn(lon,89.9)[1]); ctx.lineTo(x1, projectFn(lon,-89.9)[1]); ctx.stroke();
+  }
+  const latStart = Math.ceil(-90/stepLat)*stepLat;
+  for(let lat=latStart; lat<=90; lat+=stepLat){
+    const p0 = projectFn(-180,lat), p1 = projectFn(180,lat);
+    ctx.beginPath(); ctx.moveTo(p0[0],p0[1]); ctx.lineTo(p1[0],p1[1]); ctx.stroke();
+  }
+  ctx.strokeStyle = 'rgba(120,170,255,0.28)';
+  const eq0 = projectFn(-180,0), eq1 = projectFn(180,0);
+  ctx.beginPath(); ctx.moveTo(eq0[0],eq0[1]); ctx.lineTo(eq1[0],eq1[1]); ctx.stroke();
+
+  ctx.fillStyle = '#1c3d2c';
+  const antTop = projectFn(0,-63);
+  ctx.fillRect(0, antTop[1], w, h-antTop[1]);
+  CONTINENTS.forEach(poly=>{
+    ctx.beginPath();
+    poly.forEach(([lon,lat],idx)=>{ const [x,y] = projectFn(lon,lat); if(idx===0) ctx.moveTo(x,y); else ctx.lineTo(x,y); });
+    ctx.closePath(); ctx.fill();
+  });
+}
+
+/* ============================== orbital mechanics ============================== */
+function deg2rad(d){ return d*Math.PI/180; }
+function rad2deg(r){ return r*180/Math.PI; }
+function norm360(d){ return ((d%360)+360)%360; }
+function clamp(v,a,b){ return Math.min(b, Math.max(a,v)); }
+
+function solveKepler(M, e){
+  let E = M;
+  for(let k=0;k<40;k++){
+    const dE = (E - e*Math.sin(E) - M) / (1 - e*Math.cos(E));
+    E -= dE;
+    if(Math.abs(dE) < 1e-10) break;
+  }
+  return E;
+}
+function elementsToECI(a, e, iDeg, raanDeg, argpDeg, MDeg){
+  const i = deg2rad(iDeg), O = deg2rad(raanDeg), w = deg2rad(argpDeg);
+  const M = deg2rad(norm360(MDeg));
+  const E = solveKepler(M, e);
+  const xPf = a*(Math.cos(E) - e);
+  const yPf = a*Math.sqrt(1-e*e)*Math.sin(E);
+  const r = a*(1 - e*Math.cos(E));
+  const cosO=Math.cos(O), sinO=Math.sin(O);
+  const cosI=Math.cos(i), sinI=Math.sin(i);
+  const cosW=Math.cos(w), sinW=Math.sin(w);
+  const x = (cosO*cosW - sinO*sinW*cosI)*xPf + (-cosO*sinW - sinO*cosW*cosI)*yPf;
+  const y = (sinO*cosW + cosO*sinW*cosI)*xPf + (-sinO*sinW + cosO*cosW*cosI)*yPf;
+  const z = (sinW*sinI)*xPf + (cosW*sinI)*yPf;
+  return {x,y,z,r};
+}
+function eciToScene(p){ return new THREE.Vector3(p.x*SCENE_SCALE, p.z*SCENE_SCALE, -p.y*SCENE_SCALE); }
+
+function gmstRad(dateMs){
+  const JD = dateMs/86400000 + 2440587.5;
+  const T = (JD - 2451545.0)/36525.0;
+  let g = 280.46061837 + 360.98564736629*(JD-2451545.0) + 0.000387933*T*T - (T*T*T)/38710000;
+  g = ((g%360)+360)%360;
+  return deg2rad(g);
+}
+
+// Sun's real position (standard low-precision solar ephemeris, ~0.01deg accurate through 2050 —
+// see e.g. the Astronomical Almanac / USNO formula). Returns a unit vector in the same
+// equatorial x/y/z frame used for satellite ECI positions, so it composes directly with eciToScene.
+function sunDirectionECI(dateMs){
+  const JD = dateMs/86400000 + 2440587.5;
+  const n = JD - 2451545.0;
+  const L = deg2rad(norm360(280.460 + 0.9856474*n));
+  const g = deg2rad(norm360(357.528 + 0.9856003*n));
+  const lambda = L + deg2rad(1.915)*Math.sin(g) + deg2rad(0.020)*Math.sin(2*g);
+  const epsilon = deg2rad(23.439 - 0.0000004*n);
+  const ra = Math.atan2(Math.cos(epsilon)*Math.sin(lambda), Math.cos(lambda));
+  const dec = Math.asin(Math.sin(epsilon)*Math.sin(lambda));
+  return { x: Math.cos(dec)*Math.cos(ra), y: Math.cos(dec)*Math.sin(ra), z: Math.sin(dec) };
+}
+
+/* ============================== SGP4 (real propagator) ==============================
+   Near-earth SGP4, WGS-72 constants, standard Vallado/Hoots formulation. Validated against
+   the published reference case (ISS TLE epoch 19343.69339541, propagated to JD 2458827.362605):
+   expected r=[-6102.44,-986.33,-2820.31] km, v=[-1.45,-5.52,5.10] km/s — this implementation
+   reproduces that position exactly and velocity to within 0.01 km/s.
+   Deep-space objects (orbital period >= 225 min: GPS, geostationary, Molniya, etc.) use these
+   same near-earth equations without the lunar/solar + resonance corrections real SDP4 adds,
+   so they're noticeably less accurate over multi-day predictions — see the About section. */
+const SGP4_RE = 6378.135;            // km, WGS-72
+const SGP4_MU = 398600.8;            // km^3/s^2, WGS-72
+const SGP4_XKE = 60.0/Math.sqrt(SGP4_RE*SGP4_RE*SGP4_RE/SGP4_MU);
+const SGP4_J2 = 0.001082616, SGP4_J3 = -0.00000253881, SGP4_J4 = -0.00000165597;
+const SGP4_CK2 = 0.5*SGP4_J2, SGP4_CK4 = -0.375*SGP4_J4;
+const SGP4_A3OVK2 = -SGP4_J3/SGP4_CK2;
+const DEEP_SPACE_PERIOD_MIN = 225; // >= this, real SGP4 hands off to SDP4 (not implemented here)
+
+function sgp4init(el){
+  const { ecco, bstar, inclo, argpo, mo, nodeo } = el;
+  const no_kozai = el.no_kozai;
+  const cosio = Math.cos(inclo), sinio = Math.sin(inclo);
+  const theta2 = cosio*cosio;
+  const x3thm1 = 3*theta2-1;
+  const betao2 = 1-ecco*ecco;
+  const betao = Math.sqrt(betao2);
+
+  const a1 = Math.pow(SGP4_XKE/no_kozai, 2/3);
+  const del1 = 1.5*SGP4_CK2*x3thm1/(a1*a1*betao*betao2);
+  const ao = a1*(1 - del1*(1/3 + del1*(1 + 134/81*del1)));
+  const delo = 1.5*SGP4_CK2*x3thm1/(ao*ao*betao*betao2);
+  const xnodp = no_kozai/(1+delo);
+  const aodp = ao/(1-delo);
+
+  const perigeeKm = (aodp*(1-ecco) - 1)*SGP4_RE;
+  let s4, qoms24;
+  if(perigeeKm < 156.0){
+    let sTemp = perigeeKm - 78.0;
+    if(perigeeKm < 98.0) sTemp = 20.0;
+    qoms24 = Math.pow((120.0-sTemp)/SGP4_RE, 4);
+    s4 = sTemp/SGP4_RE + 1.0;
+  } else {
+    s4 = 78.0/SGP4_RE + 1.0;
+    qoms24 = Math.pow((120.0-78.0)/SGP4_RE, 4);
+  }
+
+  const pinvsq = 1.0/(aodp*aodp*betao2*betao2);
+  const tsi = 1.0/(aodp-s4);
+  const eta = aodp*ecco*tsi;
+  const etasq = eta*eta;
+  const eeta = ecco*eta;
+  const psisq = Math.abs(1.0-etasq);
+  const coef = qoms24*Math.pow(tsi,4);
+  const coef1 = coef/Math.pow(psisq,3.5);
+  const c2 = coef1*xnodp*(aodp*(1+1.5*etasq+eeta*(4+etasq)) + 0.375*SGP4_CK2*tsi/psisq*x3thm1*(8+3*etasq*(8+etasq)));
+  const c1 = bstar*c2;
+  const c3 = ecco > 1e-4 ? coef*tsi*SGP4_A3OVK2*xnodp*sinio/ecco : 0;
+  const x1mth2 = 1-theta2;
+  const c4 = 2*xnodp*coef1*aodp*betao2*(eta*(2+0.5*etasq)+ecco*(0.5+2*etasq)
+              - 2*SGP4_CK2*tsi/(aodp*psisq)*(-3*x3thm1*(1-2*eeta+etasq*(1.5-0.5*eeta))
+              + 0.75*x1mth2*(2*etasq-eeta*(1+etasq))*Math.cos(2*argpo)));
+  const c5 = 2*coef1*aodp*betao2*(1+2.75*(etasq+eeta)+eeta*etasq);
+
+  const theta4 = theta2*theta2;
+  const t1 = 3*SGP4_CK2*pinvsq*xnodp;
+  const t2 = t1*SGP4_CK2*pinvsq;
+  const t3 = 1.25*SGP4_CK4*pinvsq*pinvsq*xnodp;
+  const xmdot = xnodp + 0.5*t1*betao*x3thm1 + 0.0625*t2*betao*(13-78*theta2+137*theta4);
+  const x1m5th = 1-5*theta2;
+  const argpdot = -0.5*t1*x1m5th + 0.0625*t2*(7-114*theta2+395*theta4) + t3*(3-36*theta2+49*theta4);
+  const xhdot1 = -t1*cosio;
+  const nodedot = xhdot1 + (0.5*t2*(4-19*theta2)+2*t3*(3-7*theta2))*cosio;
+
+  const omgcof = bstar*c3*Math.cos(argpo);
+  const xmcof = Math.abs(eeta) > 1e-12 ? -(2/3)*coef*bstar/eeta : 0;
+  const nodecf = 3.5*betao2*xhdot1*c1;
+  const t2cof = 1.5*c1;
+  const cosioPlus1 = Math.abs(1+cosio) < 1.5e-12 ? 1.5e-12 : (1+cosio);
+  const xlcof = 0.125*SGP4_A3OVK2*sinio*(3+5*cosio)/cosioPlus1;
+  const aycof = 0.25*SGP4_A3OVK2*sinio;
+  const delmo = Math.pow(1+eta*Math.cos(mo), 3);
+  const sinmo = Math.sin(mo);
+  const x7thm1 = 7*theta2-1;
+
+  const isimp = (aodp*(1-ecco)) < (220.0/SGP4_RE + 1.0);
+  let d2=0,d3=0,d4=0,t3cof=0,t4cof=0,t5cof=0;
+  if(!isimp){
+    const c1sq = c1*c1;
+    d2 = 4*aodp*tsi*c1sq;
+    const tempD = d2*tsi*c1/3;
+    d3 = (17*aodp+s4)*tempD;
+    d4 = 0.5*tempD*aodp*tsi*(221*aodp+31*s4)*c1;
+    t3cof = d2+2*c1sq;
+    t4cof = 0.25*(3*d3+c1*(12*d2+10*c1sq));
+    t5cof = 0.2*(3*d4+12*c1*d3+6*d2*d2+15*c1sq*(2*d2+c1sq));
+  }
+
+  const periodMin = (2*Math.PI/xnodp);
+  return {
+    inclo, nodeo, ecco, argpo, mo, xnodp, aodp, bstar, eta,
+    cosio, sinio, x3thm1, x1mth2, x7thm1, betao, betao2,
+    c1, c4, c5, xmdot, argpdot, nodedot, omgcof, xmcof, nodecf,
+    t2cof, t3cof, t4cof, t5cof, xlcof, aycof, delmo, sinmo, isimp, d2, d3, d4,
+    isDeepSpace: periodMin >= DEEP_SPACE_PERIOD_MIN
+  };
+}
+
+function sgp4prop(sr, tsince){
+  const xmdf = sr.mo + sr.xmdot*tsince;
+  const argpdf = sr.argpo + sr.argpdot*tsince;
+  const nodedf = sr.nodeo + sr.nodedot*tsince;
+  const tsq = tsince*tsince;
+  let xnode = nodedf + sr.nodecf*tsq;
+  let tempa = 1 - sr.c1*tsince;
+  let tempe = sr.bstar*sr.c4*tsince;
+  let templ = sr.t2cof*tsq;
+  let omega = argpdf;
+  let xmp = xmdf;
+
+  if(!sr.isimp){
+    const delomg = sr.omgcof*tsince;
+    const delmVal = sr.xmcof*(Math.pow(1+sr.eta*Math.cos(xmdf),3) - sr.delmo);
+    const temp = delomg+delmVal;
+    xmp = xmdf+temp;
+    omega = argpdf-temp;
+    const tcube = tsq*tsince;
+    const tfour = tsince*tcube;
+    tempa = tempa - sr.d2*tsq - sr.d3*tcube - sr.d4*tfour;
+    tempe = tempe + sr.bstar*sr.c5*(Math.sin(xmp)-sr.sinmo);
+    templ = templ + sr.t3cof*tcube + tfour*(sr.t4cof+tsince*sr.t5cof);
+  }
+
+  const a = sr.aodp*tempa*tempa;
+  const e = clamp(sr.ecco - tempe, 1e-6, 0.999999);
+  const xl = xmp+omega+xnode+sr.xnodp*templ;
+  const xn = SGP4_XKE/Math.pow(a,1.5);
+
+  const axn = e*Math.cos(omega);
+  const temp = 1/(a*(1-e*e));
+  const xll = temp*sr.xlcof*axn;
+  const aynl = temp*sr.aycof;
+  const xlt = xl+xll;
+  const ayn = e*Math.sin(omega)+aynl;
+
+  const capu = ((xlt-xnode) % (2*Math.PI) + 2*Math.PI) % (2*Math.PI);
+  let epw = capu;
+  for(let i=0;i<10;i++){
+    const sinepw = Math.sin(epw), cosepw = Math.cos(epw);
+    const ecosE = axn*cosepw + ayn*sinepw;
+    const esinE = axn*sinepw - ayn*cosepw;
+    const f = epw - esinE - capu;
+    const fdot = 1 - ecosE;
+    const delta = f/fdot;
+    epw -= delta;
+    if(Math.abs(delta) < 1e-12) break;
+  }
+
+  const sinepw = Math.sin(epw), cosepw = Math.cos(epw);
+  const ecosE = axn*cosepw + ayn*sinepw;
+  const esinE = axn*sinepw - ayn*cosepw;
+  const elsq = axn*axn+ayn*ayn;
+  const pl = a*(1-elsq);
+  const r = a*(1-ecosE);
+  const rdot = SGP4_XKE*Math.sqrt(a)/r*esinE;
+  const rfdot = SGP4_XKE*Math.sqrt(pl)/r;
+  const betal = Math.sqrt(1-elsq);
+  const tempKep = esinE/(1+betal);
+  const cosu = a/r*(cosepw - axn + ayn*tempKep);
+  const sinu = a/r*(sinepw - ayn - axn*tempKep);
+  const u = Math.atan2(sinu, cosu);
+  const sin2u = 2*sinu*cosu;
+  const cos2u = 1-2*sinu*sinu;
+
+  const temp1 = SGP4_CK2/pl;
+  const temp2 = temp1/pl;
+  const rk = r*(1-1.5*temp2*betal*sr.x3thm1) + 0.5*temp1*sr.x1mth2*cos2u;
+  const uk = u - 0.25*temp2*sr.x7thm1*sin2u;
+  const xnodek = xnode + 1.5*temp2*sr.cosio*sin2u;
+  const xinck = sr.inclo + 1.5*temp2*sr.cosio*sr.sinio*cos2u;
+  const rdotk = rdot - xn*temp1*sr.x1mth2*sin2u;
+  const rfdotk = rfdot + xn*temp1*(sr.x1mth2*cos2u + 1.5*sr.x3thm1);
+
+  const sinuk = Math.sin(uk), cosuk = Math.cos(uk);
+  const sinik = Math.sin(xinck), cosik = Math.cos(xinck);
+  const sinnok = Math.sin(xnodek), cosnok = Math.cos(xnodek);
+  const xmx = -sinnok*cosik, xmy = cosnok*cosik;
+  const ux = xmx*sinuk + cosnok*cosuk, uy = xmy*sinuk + sinnok*cosuk, uz = sinik*sinuk;
+  const vx = xmx*cosuk - cosnok*sinuk, vy = xmy*cosuk - sinnok*sinuk, vz = sinik*cosuk;
+
+  const x = rk*ux, y = rk*uy, z = rk*uz;
+  const xdot = rdotk*ux + rfdotk*vx, ydot = rdotk*uy + rfdotk*vy, zdot = rdotk*uz + rfdotk*vz;
+
+  return {
+    x: x*SGP4_RE, y: y*SGP4_RE, z: z*SGP4_RE, r: rk*SGP4_RE,
+    vx: xdot*SGP4_RE/60, vy: ydot*SGP4_RE/60, vz: zdot*SGP4_RE/60,
+    raanNow: xnode, argpNow: omega, aNow: a*SGP4_RE, eNow: e
+  };
+}
+// satCurrentElements below extracts the perturbed orbital elements at a given time
+// (used to draw the live, precessing orbital plane).
+// Position at an absolute time (ms), given a satrec and the epoch it's relative to.
+function sgp4PositionAt(satrec, refEpochMs, absMs){
+  const tsinceMin = (absMs - refEpochMs)/60000;
+  return sgp4prop(satrec, tsinceMin);
+}
+
+/* ============================== TLE parse + build ============================== */
+function tleChecksum(line){
+  let sum = 0;
+  for(const ch of line){
+    if(ch >= '0' && ch <= '9') sum += ch.charCodeAt(0)-48;
+    else if(ch === '-') sum += 1;
+  }
+  return sum % 10;
+}
+function padL(s,n){ s=String(s); while(s.length<n) s=' '+s; return s; }
+function padZ(s,n){ s=String(s); while(s.length<n) s='0'+s; return s; }
+
+function parseTleExp(raw){
+  const s = (raw||'').trim();
+  if(s === '') return 0;
+  const m = s.match(/^([+-]?)(\d+)([+-]\d)$/);
+  if(!m) return 0;
+  const sign = m[1] === '-' ? -1 : 1;
+  const mantissa = parseFloat('0.'+m[2]);
+  const exp = parseInt(m[3],10);
+  return sign*mantissa*Math.pow(10,exp);
+}
+function tleEpochToMs(yr2, day){
+  const fullYear = yr2 < 57 ? 2000+yr2 : 1900+yr2;
+  const jan1 = Date.UTC(fullYear,0,1);
+  return jan1 + (day-1)*86400000;
+}
+
+// Parses pasted text (2 or 3 non-empty lines) -> element object, or {error:'...'}
+// Extracts orbital elements from one already-identified pair of TLE data lines.
+function parseOneTLE(name, l1, l2){
+  if(l1.length < 69 || l2.length < 69) return { error:'a TLE line looked too short — check nothing got cut off when pasting.' };
+
+  const satnum = l1.substring(2,7).trim();
+  const intl = l1.substring(9,17).trim();
+  const epochYear = parseInt(l1.substring(18,20),10);
+  const epochDay = parseFloat(l1.substring(20,32));
+  const bstar = parseTleExp(l1.substring(53,61));
+  const ndot = parseFloat(l1.substring(33,43));
+
+  const i = parseFloat(l2.substring(8,16));
+  const raan = parseFloat(l2.substring(17,25));
+  const eccStr = l2.substring(26,33).trim();
+  const e = parseFloat('0.'+eccStr);
+  const argp = parseFloat(l2.substring(34,42));
+  const ma = parseFloat(l2.substring(43,51));
+  const n0 = parseFloat(l2.substring(52,63));
+
+  if([i,raan,e,argp,ma,n0].some(v=>Number.isNaN(v))){
+    return { error:'some fields did not parse as numbers — check the TLE is unmodified and properly aligned.' };
+  }
+  return {
+    name: name || ('SAT ' + satnum), satnum, intl, ndot,
+    epochMs: tleEpochToMs(epochYear, epochDay),
+    i, raan, e, argp, ma, n0, bstar
+  };
+}
+
+// Scans pasted text for as many TLEs as it can find, in any of these forms, mixed freely:
+//   NAME / line1 / line2                 (standard 3-line "3LE" format)
+//   line1 / line2                        (bare 2-line format, name falls back to "SAT <catnum>")
+//   ...repeated any number of times, with optional blank lines between records.
+function parseMultipleTLEs(text){
+  const rawLines = text.split('\n').map(l=>l.replace(/\r$/,'')).filter(l=>l.trim().length>0);
+  const results = [];
+  const errors = [];
+  if(rawLines.length === 0){
+    errors.push('Paste at least one TLE — the two lines starting with "1 " and "2 ".');
+    return { results, errors };
+  }
+  let i = 0, found = 0;
+  while(i < rawLines.length){
+    const line = rawLines[i].trim();
+    if(line.startsWith('1 ') && i+1 < rawLines.length && rawLines[i+1].trim().startsWith('2 ')){
+      found++;
+      const l1 = line, l2 = rawLines[i+1].trim();
+      let name = null;
+      if(i > 0){
+        const prev = rawLines[i-1].trim();
+        if(!prev.startsWith('1 ') && !prev.startsWith('2 ')) name = prev;
+      }
+      const parsed = parseOneTLE(name, l1, l2);
+      if(parsed.error) errors.push((name || ('satellite #'+found))+': '+parsed.error);
+      else results.push(parsed);
+      i += 2;
+    } else {
+      i += 1;
+    }
+  }
+  if(found === 0) errors.push('Could not find any TLE lines — line 1 should start with "1 " and line 2 with "2 ".');
+  return { results, errors };
+}
+
+function buildTLE(sat){
+  const epochDate = new Date(sat.refEpochMs);
+  const yr = epochDate.getUTCFullYear() % 100;
+  const start = Date.UTC(epochDate.getUTCFullYear(),0,1);
+  const doy = (epochDate.getTime()-start)/86400000 + 1;
+  const epoch = padZ(yr,2) + padL(doy.toFixed(8), 12);
+  const bstarStr = formatTleExp(sat.bstar);
+  const satnumPadded = padZ(sat.satnum || '90000', 5).slice(-5);
+  const intl = padL((sat.intl || '26001A'), 8);
+  const l1body = '1 ' + satnumPadded + 'U ' + intl + ' ' + epoch + '  .00000000  00000-0 ' + bstarStr + ' 0  001';
+  const l1 = l1body + tleChecksum(l1body);
+  const incl = padL(sat.i.toFixed(4), 8);
+  const raan = padL(sat.raan.toFixed(4), 8);
+  const ecc  = padZ(Math.round(sat.e*1e7), 7);
+  const argp = padL(sat.argp.toFixed(4), 8);
+  const maStr = padL(norm360(sat.ma).toFixed(4), 8);
+  const mm   = padL(sat.n0.toFixed(8), 11);
+  const l2body = '2 ' + satnumPadded + ' ' + incl + ' ' + raan + ' ' + ecc + ' ' + argp + ' ' + maStr + ' ' + mm + '00001';
+  const l2 = l2body + tleChecksum(l2body);
+  return l1 + '\n' + l2;
+}
+function formatTleExp(val){
+  if(!val) return ' 00000-0';
+  const sign = val < 0 ? '-' : ' ';
+  let v = Math.abs(val);
+  let exp = 0;
+  if(v === 0) return ' 00000-0';
+  while(v < 0.1 && exp > -9){ v *= 10; exp -= 1; }
+  while(v >= 1 && exp < 9){ v /= 10; exp += 1; }
+  const mantissa = Math.round(v*1e5).toString().padStart(5,'0');
+  const expStr = (exp<0?'-':'+') + Math.abs(exp);
+  return sign + mantissa + expStr;
+}
+
+/* ============================== satellite state ============================== */
+const PALETTE = ['#56d6ff','#ffb454','#35e6b0','#ff7a90','#b48cff','#f4e04d','#7fd0ff','#ff9f6e'];
+let satellites = [];
+let nextSatId = 1;
+let selectedForCamera = null;
+const openSatIds = new Set();
+
+const PARAM_DEFS = [
+  {key:'i',     label:'Inclination',    min:0,     max:180,  step:0.0001,    unit:'°',       fmt:4},
+  {key:'raan',  label:'RAAN (ascending node)', min:0, max:360,  step:0.0001,    unit:'°',       fmt:4},
+  {key:'e',     label:'Eccentricity',   min:0,     max:0.9,  step:0.0000001, unit:'',        fmt:7},
+  {key:'argp',  label:'Argument of perigee', min:0, max:360, step:0.0001,    unit:'°',       fmt:4},
+  {key:'ma',    label:'Mean anomaly',   min:0,     max:360,  step:0.0001,    unit:'°',       fmt:4},
+  {key:'n0',    label:'Mean motion',    min:1,     max:17,   step:0.00000001,unit:'rev/day', fmt:8},
+  {key:'bstar', label:'BSTAR (drag)',   min:-0.001,max:0.01, step:0.00000001,unit:'1/R\u2295', fmt:8}
+];
+
+function nextColor(){ return PALETTE[(satellites.length) % PALETTE.length]; }
+
+function buildSatrecFor(sat){
+  sat.satrec = sgp4init({
+    inclo: deg2rad(sat.i), nodeo: deg2rad(sat.raan), ecco: sat.e, argpo: deg2rad(sat.argp),
+    mo: deg2rad(sat.ma), no_kozai: sat.n0*2*Math.PI/1440, bstar: sat.bstar
+  });
+}
+// Real SGP4-propagated state at an absolute time (ms). Returns TEME-ish position/velocity (km, km/s).
+function satStateAt(sat, absMs){
+  return sgp4prop(sat.satrec, (absMs - sat.refEpochMs)/60000);
+}
+// The satellite's actual current orbital elements, as perturbed by J2 (nodal + apsidal
+// precession) and drag (secular shrink of a/e) up to this moment. Inclination has no
+// secular drift under J2, so it's carried over unchanged from the epoch value.
+function satCurrentElements(sat, absMs){
+  const st = satStateAt(sat, absMs);
+  return {
+    i: sat.i,
+    raan: rad2deg(st.raanNow),
+    e: st.eNow,
+    argp: rad2deg(st.argpNow),
+    a: st.aNow
+  };
+}
+
+function addSatellite(elements){
+  const id = nextSatId++;
+  const color = nextColor();
+
+  const sat = {
+    id, color, name: elements.name, satnum: elements.satnum, intl: elements.intl,
+    i: elements.i, raan: elements.raan, e: elements.e, argp: elements.argp,
+    ma: elements.ma, n0: elements.n0, bstar: elements.bstar || 0,
+    refEpochMs: elements.epochMs, // the TLE's own epoch — SGP4 propagates from here natively, no fast-forwarding needed
+    track: []
+  };
+  buildSatrecFor(sat);
+
+  // Faint, static reference: the orbital plane exactly as given at epoch — never moves.
+  const orbitLine = new THREE.Line(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ color: new THREE.Color(color), transparent:true, opacity:0.32 }));
+  // Bright, live: the same plane as actually perturbed by J2 + drag up to the current time — this is the one that visibly precesses.
+  const orbitLineNow = new THREE.Line(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ color: new THREE.Color(color) }));
+  const satMesh = new THREE.Mesh(new THREE.SphereGeometry(0.055,16,16), new THREE.MeshBasicMaterial({ color: new THREE.Color(color) }));
+  const groundTrackLine3D = new THREE.Line(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ color: new THREE.Color(color) }));
+  scene.add(orbitLine, orbitLineNow, satMesh);
+  earthMesh.add(groundTrackLine3D); // child of the globe, so the trail spins with the planet like paint on its surface
+  sat.three = { orbitLine, orbitLineNow, satMesh, groundTrackLine3D };
+
+  satellites.push(sat);
+  rebuildOrbitLine(sat);
+  rebuildLiveOrbitLine(sat);
+  const box0 = document.getElementById('tle-box-'+sat.id);
+  if(box0) box0.textContent = buildTLE(sat);
+  renderSatList();
+  updateSatCount();
+  return sat;
+}
+function removeSatellite(id){
+  const idx = satellites.findIndex(s=>s.id===id);
+  if(idx===-1) return;
+  const sat = satellites[idx];
+  scene.remove(sat.three.orbitLine, sat.three.orbitLineNow, sat.three.satMesh);
+  earthMesh.remove(sat.three.groundTrackLine3D);
+  sat.three.orbitLine.geometry.dispose();
+  sat.three.orbitLineNow.geometry.dispose();
+  sat.three.groundTrackLine3D.geometry.dispose();
+  satellites.splice(idx,1);
+  renderSatList();
+  updateSatCount();
+  syncTrackVisuals();
+}
+function updateSatCount(){
+  document.getElementById('sat-count').textContent = satellites.length;
+  document.getElementById('empty-hint').style.display = satellites.length ? 'none' : 'block';
+}
+
+// Converts a lat/lon into the sphere's own local (pre-rotation) coordinate space, so a line
+// built from these points and parented to earthMesh stays painted on the surface as it spins.
+function lonLatToSphereLocal(lon, lat, radius){
+  const latRad = deg2rad(lat), lonRad = deg2rad(lon);
+  return new THREE.Vector3(
+    radius*Math.cos(latRad)*Math.cos(lonRad),
+    radius*Math.sin(latRad),
+    -radius*Math.cos(latRad)*Math.sin(lonRad)
+  );
+}
+function rebuild3DTrackLine(sat){
+  const radius = EARTH_R_SCENE*1.004;
+  const pts = sat.track.map(([lon,lat]) => lonLatToSphereLocal(lon, lat, radius));
+  sat.three.groundTrackLine3D.geometry.dispose();
+  sat.three.groundTrackLine3D.geometry = pts.length > 1 ? new THREE.BufferGeometry().setFromPoints(pts) : new THREE.BufferGeometry();
+}
+// Keeps the flat ground-track map and the 3D trail on the globe in sync with each other.
+function syncTrackVisuals(){
+  drawGroundTrack();
+  satellites.forEach(rebuild3DTrackLine);
+}
+
+// Called whenever a slider is edited: the current sim clock becomes this satellite's new
+// reference epoch for its (now user-defined) mean elements, exactly like handing SGP4 a fresh TLE.
+function recomputeSat(sat){
+  sat.refEpochMs = simClockMs;
+  buildSatrecFor(sat);
+  sat.track = [];
+  rebuildOrbitLine(sat);
+  rebuildLiveOrbitLine(sat);
+  rebuild3DTrackLine(sat);
+  const box = document.getElementById('tle-box-'+sat.id);
+  if(box) box.textContent = buildTLE(sat);
+  const meta = document.getElementById('sat-meta-'+sat.id);
+  if(meta) meta.textContent = satMetaText(sat);
+}
+// Faint reference ellipse: the mean orbit exactly as given at epoch. Never changes on its own.
+function rebuildOrbitLine(sat){
+  const nRad = sat.n0*2*Math.PI/86400;
+  const aApprox = Math.cbrt(MU/(nRad*nRad));
+  const pts = [];
+  for(let k=0;k<=160;k++){
+    const Mk = k/160*360;
+    pts.push(eciToScene(elementsToECI(aApprox, sat.e, sat.i, sat.raan, sat.argp, Mk)));
+  }
+  sat.three.orbitLine.geometry.dispose();
+  sat.three.orbitLine.geometry = new THREE.BufferGeometry().setFromPoints(pts);
+}
+// Bright live ellipse: the orbital plane as actually perturbed by J2 + drag up to right now.
+// This is the one that visibly rotates/shrinks as the simulation plays — nodal regression,
+// apsidal precession, and drag-driven shrinkage all show up here relative to the faint one.
+function rebuildLiveOrbitLine(sat){
+  const el = satCurrentElements(sat, simClockMs);
+  const pts = [];
+  for(let k=0;k<=160;k++){
+    const Mk = k/160*360;
+    pts.push(eciToScene(elementsToECI(el.a, el.e, el.i, el.raan, el.argp, Mk)));
+  }
+  sat.three.orbitLineNow.geometry.dispose();
+  sat.three.orbitLineNow.geometry = new THREE.BufferGeometry().setFromPoints(pts);
+}
+function satMetaText(sat){
+  const st = satStateAt(sat, simClockMs);
+  const vmag = Math.hypot(st.vx, st.vy, st.vz);
+  const a = 1/(2/st.r - (vmag*vmag)/MU); // osculating semi-major axis via vis-viva, from the live SGP4 state
+  const periodMin = 2*Math.PI*Math.sqrt(Math.abs(a*a*a)/MU)/60;
+  const alt = st.r - EARTH_R_KM;
+  const regime = sat.satrec.isDeepSpace ? ' · deep-space regime (reduced accuracy)' : '';
+  const raanDriftDeg = norm360(rad2deg(st.raanNow) - sat.raan);
+  const raanDrift = raanDriftDeg > 180 ? raanDriftDeg-360 : raanDriftDeg;
+  return alt.toFixed(0)+'km alt · '+periodMin.toFixed(1)+'min period · RAAN '+(raanDrift>=0?'+':'')+raanDrift.toFixed(2)+'° since epoch'+regime;
+}
+
+/* ============================== example seeds ============================== */
+const ISS_TEXT = "ISS (ZARYA)\n1 25544U 98067A   26133.42450843  .00004829  00000+0  95080-4 0  9993\n2 25544  51.6310 112.1825 0007522  54.1994 305.9693 15.49203550566361";
+
+function addExampleFromElements(name, i, raan, e, argp, ma, n0, bstar, satnum, intl){
+  addSatellite({ name, i, raan, e, argp, ma, n0, bstar, satnum, intl, epochMs: simClockMs });
+}
+function loadIssExample(){
+  const { results } = parseMultipleTLEs(ISS_TEXT);
+  results.forEach(addSatellite);
+}
+function loadGpsExample(){
+  addExampleFromElements('GPS Example (MEO)', 55, 45, 0.01, 90, 0, 2.00561, 0, '90001', '26900A');
+}
+function loadGeoExample(){
+  addExampleFromElements('Geostationary Example', 0.05, 0, 0.0002, 0, 0, 1.00273791, 0, '90002', '26900B');
+}
+
+/* ============================== three.js scene ============================== */
+const canvas = document.getElementById('three-canvas');
+const wrap = document.getElementById('viewport-wrap');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias:true, alpha:true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio||1, 2));
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(50, 1, 0.05, 1000);
+
+const ambientLight = new THREE.AmbientLight(0x8899bb, 0.2);
+scene.add(ambientLight);
+const sunLight = new THREE.DirectionalLight(0xffffff, 1.6);
+sunLight.position.set(5,3,4);
+scene.add(sunLight);
+const SUN_DISTANCE_SCENE = 60; // far enough outside the globe; only direction matters for a directional light
+function updateSunLight(absMs){
+  const s = sunDirectionECI(absMs);
+  // same axis remap as eciToScene (x,z,-y), applied to a direction rather than a physical position
+  sunLight.position.set(s.x*SUN_DISTANCE_SCENE, s.z*SUN_DISTANCE_SCENE, -s.y*SUN_DISTANCE_SCENE);
+}
+let nightEnabled = true;
+function applyLightingMode(){
+  if(nightEnabled){ ambientLight.intensity = 0.2; sunLight.intensity = 1.6; }
+  else { ambientLight.intensity = 1.15; sunLight.intensity = 0.55; }
+}
+
+(function(){
+  const N = 900;
+  const pos = new Float32Array(N*3);
+  for(let k=0;k<N;k++){
+    const r = 40 + Math.random()*60;
+    const th = Math.random()*Math.PI*2, ph = Math.acos(2*Math.random()-1);
+    pos[k*3] = r*Math.sin(ph)*Math.cos(th); pos[k*3+1] = r*Math.cos(ph); pos[k*3+2] = r*Math.sin(ph)*Math.sin(th);
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos,3));
+  scene.add(new THREE.Points(geo, new THREE.PointsMaterial({ color:0xaabbdd, size:0.06, sizeAttenuation:true })));
+})();
+
+const texCanvas = document.createElement('canvas');
+texCanvas.width = 1536; texCanvas.height = 768;
+drawWorldMapGeneric(texCanvas.getContext('2d'), texCanvas.width, texCanvas.height, (lon,lat)=>lonLatToXY(lon,lat,texCanvas.width,texCanvas.height), 360, 180);
+const earthTexture = new THREE.CanvasTexture(texCanvas);
+earthTexture.needsUpdate = true;
+const proceduralMaterial = new THREE.MeshPhongMaterial({ map:earthTexture, shininess:4, specular:0x223344 });
+
+const REAL_MAP_URL = 'https://threejs.org/examples/textures/planets/earth_atmos_2048.jpg';
+let realMapStatus = 'loading'; // 'loading' | 'ready' | 'error'
+let realMapImageEl = null;
+const realMapTexture = new THREE.TextureLoader().load(
+  REAL_MAP_URL,
+  (tex)=>{ realMapStatus = 'ready'; realMapImageEl = tex.image; if(mapMode==='real') drawGroundTrack(); },
+  undefined,
+  ()=>{ realMapStatus = 'error'; if(mapMode==='real'){ setMapMode('illustrated'); showMapNote("Couldn't load the real map (no connection?) — showing the illustrated map."); } }
+);
+const realMaterial = new THREE.MeshPhongMaterial({ map:realMapTexture, shininess:4, specular:0x223344 });
+
+const earthMesh = new THREE.Mesh(new THREE.SphereGeometry(EARTH_R_SCENE,64,64), proceduralMaterial);
+scene.add(earthMesh);
+
+(function(){
+  const pts = [];
+  for(let k=0;k<=128;k++){ const a=k/128*Math.PI*2; pts.push(new THREE.Vector3(Math.cos(a)*EARTH_R_SCENE*1.001,0,Math.sin(a)*EARTH_R_SCENE*1.001)); }
+  scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({ color:0x3a5578, transparent:true, opacity:0.6 })));
+})();
+
+/* camera drag/pinch, deep-zoom capable */
+const camState = { theta:0.7, phi:1.15, radius:8.5 };
+const CAM_MIN_R = 2.06, CAM_MAX_R = 30;
+function updateCamera(){
+  camera.position.set(
+    camState.radius*Math.sin(camState.phi)*Math.sin(camState.theta),
+    camState.radius*Math.cos(camState.phi),
+    camState.radius*Math.sin(camState.phi)*Math.cos(camState.theta)
+  );
+  camera.lookAt(0,0,0);
+}
+updateCamera();
+const pointers = new Map();
+let lastPinchDist = null;
+canvas.style.touchAction = 'none';
+canvas.addEventListener('pointerdown', e=>{ canvas.setPointerCapture(e.pointerId); pointers.set(e.pointerId,{x:e.clientX,y:e.clientY}); });
+canvas.addEventListener('pointermove', e=>{
+  if(!pointers.has(e.pointerId)) return;
+  const prev = pointers.get(e.pointerId); const cur = {x:e.clientX,y:e.clientY}; pointers.set(e.pointerId,cur);
+  if(pointers.size===1){
+    const dx=cur.x-prev.x, dy=cur.y-prev.y;
+    camState.theta -= dx*0.007;
+    camState.phi = clamp(camState.phi - dy*0.007, 0.15, Math.PI-0.15);
+    updateCamera();
+  } else if(pointers.size===2){
+    const pts = Array.from(pointers.values());
+    const dist = Math.hypot(pts[0].x-pts[1].x, pts[0].y-pts[1].y);
+    if(lastPinchDist!=null){ camState.radius = clamp(camState.radius + (lastPinchDist-dist)*0.02, CAM_MIN_R, CAM_MAX_R); updateCamera(); }
+    lastPinchDist = dist;
+  }
+});
+function releasePointer(e){ pointers.delete(e.pointerId); lastPinchDist=null; }
+canvas.addEventListener('pointerup', releasePointer);
+canvas.addEventListener('pointercancel', releasePointer);
+canvas.addEventListener('pointerleave', releasePointer);
+canvas.addEventListener('wheel', e=>{ e.preventDefault(); camState.radius = clamp(camState.radius + e.deltaY*0.01, CAM_MIN_R, CAM_MAX_R); updateCamera(); }, { passive:false });
+document.getElementById('btn-reset-cam').addEventListener('click', ()=>{ camState.theta=0.7; camState.phi=1.15; camState.radius=8.5; updateCamera(); });
+
+function resizeThree(){
+  const w = wrap.clientWidth, h = wrap.clientHeight;
+  renderer.setSize(w,h,false);
+  camera.aspect = w/h;
+  camera.updateProjectionMatrix();
+}
+window.addEventListener('resize', ()=>{ resizeThree(); resizeGT(); });
+
+/* ============================== ground track: zoomable + pannable ============================== */
+const gtCanvas = document.getElementById('gt-canvas');
+const gtCtx = gtCanvas.getContext('2d');
+const gtView = { cx:0, cy:0, scale:1 };
+const GT_MAX_SCALE = 80;
+
+function gtClamp(){
+  const halfLon = 180/gtView.scale, halfLat = 90/gtView.scale;
+  gtView.cx = (halfLon>=180) ? 0 : clamp(gtView.cx, -180+halfLon, 180-halfLon);
+  gtView.cy = (halfLat>=90) ? 0 : clamp(gtView.cy, -90+halfLat, 90-halfLat);
+}
+function gtProject(lon,lat,w,h){
+  const halfLon = 180/gtView.scale, halfLat = 90/gtView.scale;
+  const x = (lon - (gtView.cx-halfLon)) / (2*halfLon) * w;
+  const y = ((gtView.cy+halfLat) - lat) / (2*halfLat) * h;
+  return [x,y];
+}
+function resizeGT(){
+  const w = gtCanvas.clientWidth, h = gtCanvas.clientHeight;
+  const dpr = Math.min(window.devicePixelRatio||1, 2);
+  gtCanvas.width = w*dpr; gtCanvas.height = h*dpr;
+  drawGroundTrack();
+}
+function drawRealMapCrop(ctx, w, h){
+  const img = realMapImageEl;
+  const iw = img.naturalWidth, ih = img.naturalHeight;
+  const halfLon = 180/gtView.scale, halfLat = 90/gtView.scale;
+  const lonMin = gtView.cx-halfLon, lonMax = gtView.cx+halfLon;
+  const latMax = clamp(gtView.cy+halfLat,-90,90), latMin = clamp(gtView.cy-halfLat,-90,90);
+  const [sx0, sy0] = lonLatToXY(lonMin, latMax, iw, ih);
+  const [sx1, sy1] = lonLatToXY(lonMax, latMin, iw, ih);
+  ctx.drawImage(img, sx0, sy0, Math.max(1,sx1-sx0), Math.max(1,sy1-sy0), 0, 0, w, h);
+}
+function drawGroundTrack(){
+  const w = gtCanvas.width, h = gtCanvas.height;
+  if(!w || !h) return;
+  if(mapMode==='real' && realMapStatus==='ready'){
+    drawRealMapCrop(gtCtx, w, h);
+  } else {
+    const lonSpan = 360/gtView.scale, latSpan = 180/gtView.scale;
+    drawWorldMapGeneric(gtCtx, w, h, (lon,lat)=>gtProject(lon,lat,w,h), lonSpan, latSpan);
+  }
+
+  satellites.forEach(sat=>{
+    gtCtx.strokeStyle = sat.color;
+    gtCtx.lineWidth = Math.max(1.3, w*0.0022);
+    gtCtx.beginPath();
+    let started=false, prevX=null;
+    for(let k=0;k<sat.track.length;k++){
+      const [lon,lat] = sat.track[k];
+      const [x,y] = gtProject(lon,lat,w,h);
+      if(!started || (prevX!=null && Math.abs(x-prevX) > w*0.5)){ gtCtx.moveTo(x,y); started=true; }
+      else { gtCtx.lineTo(x,y); }
+      prevX = x;
+    }
+    gtCtx.stroke();
+    if(sat.track.length){
+      const [lon,lat] = sat.track[sat.track.length-1];
+      const [x,y] = gtProject(lon,lat,w,h);
+      gtCtx.fillStyle = sat.color;
+      gtCtx.beginPath(); gtCtx.arc(x,y,Math.max(2.6,w*0.007),0,Math.PI*2); gtCtx.fill();
+    }
+  });
+}
+const gtPointers = new Map();
+let gtLastPinchDist = null;
+gtCanvas.style.touchAction = 'none';
+gtCanvas.addEventListener('pointerdown', e=>{ gtCanvas.setPointerCapture(e.pointerId); gtPointers.set(e.pointerId,{x:e.clientX,y:e.clientY}); });
+gtCanvas.addEventListener('pointermove', e=>{
+  if(!gtPointers.has(e.pointerId)) return;
+  const prev = gtPointers.get(e.pointerId); const cur = {x:e.clientX,y:e.clientY}; gtPointers.set(e.pointerId,cur);
+  const rect = gtCanvas.getBoundingClientRect();
+  if(gtPointers.size===1){
+    const dx=cur.x-prev.x, dy=cur.y-prev.y;
+    const halfLon=180/gtView.scale, halfLat=90/gtView.scale;
+    gtView.cx -= dx/rect.width*2*halfLon;
+    gtView.cy += dy/rect.height*2*halfLat;
+    gtClamp(); drawGroundTrack();
+  } else if(gtPointers.size===2){
+    const pts = Array.from(gtPointers.values());
+    const dist = Math.hypot(pts[0].x-pts[1].x, pts[0].y-pts[1].y);
+    if(gtLastPinchDist!=null){
+      gtView.scale = clamp(gtView.scale*(dist/gtLastPinchDist), 1, GT_MAX_SCALE);
+      gtClamp(); drawGroundTrack();
+    }
+    gtLastPinchDist = dist;
+  }
+});
+function releaseGtPointer(e){ gtPointers.delete(e.pointerId); gtLastPinchDist=null; }
+gtCanvas.addEventListener('pointerup', releaseGtPointer);
+gtCanvas.addEventListener('pointercancel', releaseGtPointer);
+gtCanvas.addEventListener('pointerleave', releaseGtPointer);
+gtCanvas.addEventListener('wheel', e=>{
+  e.preventDefault();
+  gtView.scale = clamp(gtView.scale*Math.pow(1.0016,-e.deltaY), 1, GT_MAX_SCALE);
+  gtClamp(); drawGroundTrack();
+}, { passive:false });
+document.getElementById('btn-reset-gt').addEventListener('click', ()=>{ gtView.cx=0; gtView.cy=0; gtView.scale=1; drawGroundTrack(); });
+
+/* ============================== real map toggle ============================== */
+const btnMapMode = document.getElementById('btn-map-mode');
+function setMapMode(mode){
+  mapMode = mode;
+  earthMesh.material = (mode==='real') ? realMaterial : proceduralMaterial;
+  btnMapMode.textContent = (mode==='real') ? 'Illustrated map' : 'Real map';
+  drawGroundTrack();
+}
+btnMapMode.addEventListener('click', ()=>{
+  if(mapMode==='illustrated'){
+    if(realMapStatus==='error'){ showMapNote("Couldn't load the real map (no connection?) — showing the illustrated map."); return; }
+    setMapMode('real');
+    if(realMapStatus==='loading') showMapNote('Loading real map imagery…');
+  } else {
+    setMapMode('illustrated');
+  }
+});
+
+/* ============================== night toggle ============================== */
+const btnNightMode = document.getElementById('btn-night-mode');
+btnNightMode.addEventListener('click', ()=>{
+  nightEnabled = !nightEnabled;
+  applyLightingMode();
+  btnNightMode.textContent = nightEnabled ? 'Disable night' : 'Enable night';
+});
+
+let mapNoteTimer = null;
+function showMapNote(text){
+  let note = document.getElementById('map-note');
+  if(!note){
+    note = document.createElement('div');
+    note.id = 'map-note';
+    note.className = 'map-note';
+    wrap.appendChild(note);
+  }
+  note.textContent = text;
+  note.style.display = 'block';
+  clearTimeout(mapNoteTimer);
+  mapNoteTimer = setTimeout(()=>{ note.style.display = 'none'; }, 3200);
+}
+
+/* ============================== fullscreen toggles (CSS-based, works in embedded webviews) ============================== */
+const gtWrap = document.getElementById('gt-wrap');
+let globeFS = false, gtFS = false;
+document.getElementById('btn-fullscreen-globe').addEventListener('click', ()=>{
+  globeFS = !globeFS;
+  wrap.classList.toggle('is-fullscreen', globeFS);
+  document.body.style.overflow = globeFS ? 'hidden' : '';
+  document.getElementById('btn-fullscreen-globe').innerHTML = globeFS ? '&#10005;' : '&#9974;';
+  requestAnimationFrame(resizeThree);
+});
+document.getElementById('btn-fullscreen-gt').addEventListener('click', ()=>{
+  gtFS = !gtFS;
+  gtWrap.classList.toggle('is-fullscreen', gtFS);
+  document.body.style.overflow = gtFS ? 'hidden' : '';
+  document.getElementById('btn-fullscreen-gt').innerHTML = gtFS ? '&#10005;' : '&#9974;';
+  requestAnimationFrame(resizeGT);
+});
+
+/* ============================== satellite list UI ============================== */
+const satList = document.getElementById('sat-list');
+function renderSatList(){
+  satList.innerHTML = '';
+  satellites.forEach(sat=>{
+    const card = document.createElement('div');
+    card.className = 'sat-card';
+    card.innerHTML =
+      '<div class="sat-head">'+
+        '<span class="sat-dot" style="background:'+sat.color+'"></span>'+
+        '<input type="text" class="sat-name" id="name-'+sat.id+'" value="'+escapeHtml(sat.name)+'">'+
+        '<span class="sat-meta mono" id="sat-meta-'+sat.id+'"></span>'+
+        '<button class="sat-remove" id="remove-'+sat.id+'">\u00d7</button>'+
+      '</div>'+
+      '<button class="sat-toggle" id="toggle-'+sat.id+'">+ edit orbit &amp; BSTAR</button>'+
+      '<div class="sat-body" id="body-'+sat.id+'" style="display:none;"></div>';
+    satList.appendChild(card);
+
+    document.getElementById('name-'+sat.id).addEventListener('input', e=>{ sat.name = e.target.value; });
+    document.getElementById('remove-'+sat.id).addEventListener('click', ()=> removeSatellite(sat.id));
+    const toggleBtn = document.getElementById('toggle-'+sat.id);
+    const body = document.getElementById('body-'+sat.id);
+    if(openSatIds.has(sat.id)){
+      buildSatBody(sat, body);
+      body.style.display = 'block';
+      toggleBtn.textContent = '\u2013 edit orbit & BSTAR';
+    }
+    toggleBtn.addEventListener('click', ()=>{
+      const isOpen = body.style.display !== 'none';
+      if(isOpen){
+        body.style.display = 'none';
+        toggleBtn.textContent = '+ edit orbit & BSTAR';
+        openSatIds.delete(sat.id);
+      } else {
+        buildSatBody(sat, body);
+        body.style.display = 'block';
+        toggleBtn.textContent = '\u2013 edit orbit & BSTAR';
+        openSatIds.add(sat.id);
+      }
+    });
+    document.getElementById('sat-meta-'+sat.id).textContent = satMetaText(sat);
+  });
+}
+function escapeHtml(s){ return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+function buildSatBody(sat, container){
+  container.style.setProperty('--sat-color', sat.color);
+  let html = '';
+  PARAM_DEFS.forEach(p=>{
+    html +=
+      '<div class="control-row" style="--sat-color:'+sat.color+'">'+
+        '<div class="control-head">'+
+          '<label>'+p.label+'</label>'+
+          '<div class="input-group"><input type="number" class="numbox" id="s'+sat.id+'-n-'+p.key+'" inputmode="decimal" step="'+p.step+'" min="'+p.min+'" max="'+p.max+'"><span class="unit">'+p.unit+'</span></div>'+
+        '</div>'+
+        '<input type="range" id="s'+sat.id+'-r-'+p.key+'" min="'+p.min+'" max="'+p.max+'" step="'+p.step+'" style="--sat-color:'+sat.color+'">'+
+      '</div>';
+  });
+  html += '<div class="mini-title-row" style="margin-top:8px;"><span class="mini-title">Live TLE for this satellite</span></div>';
+  html += '<div class="tle-box mono" id="tle-box-'+sat.id+'" style="--sat-color:'+sat.color+'"></div>';
+  container.innerHTML = html;
+
+  PARAM_DEFS.forEach(p=>{
+    const rangeEl = document.getElementById('s'+sat.id+'-r-'+p.key);
+    const numEl = document.getElementById('s'+sat.id+'-n-'+p.key);
+    rangeEl.value = sat[p.key];
+    numEl.value = sat[p.key].toFixed(p.fmt);
+    rangeEl.addEventListener('input', ()=>{
+      sat[p.key] = parseFloat(rangeEl.value);
+      numEl.value = sat[p.key].toFixed(p.fmt);
+      recomputeSat(sat);
+    });
+    numEl.addEventListener('input', ()=>{
+      const v = parseFloat(numEl.value);
+      if(Number.isNaN(v)) return;
+      const c = clamp(v, p.min, p.max);
+      sat[p.key] = c;
+      rangeEl.value = c;
+      recomputeSat(sat);
+    });
+    numEl.addEventListener('blur', ()=>{ numEl.value = sat[p.key].toFixed(p.fmt); });
+    numEl.addEventListener('keydown', e=>{ if(e.key==='Enter') numEl.blur(); });
+  });
+  document.getElementById('tle-box-'+sat.id).textContent = buildTLE(sat);
+}
+
+/* ============================== add-satellite wiring ============================== */
+document.getElementById('btn-add-tle').addEventListener('click', ()=>{
+  const errEl = document.getElementById('add-error');
+  const textEl = document.getElementById('tle-input');
+  const { results, errors } = parseMultipleTLEs(textEl.value);
+  results.forEach(addSatellite);
+
+  if(!results.length && !errors.length){
+    errEl.textContent = '';
+  } else if(!errors.length){
+    errEl.textContent = '';
+    textEl.value = '';
+  } else if(results.length){
+    errEl.textContent = 'Added '+results.length+' satellite'+(results.length>1?'s':'')+' · skipped '+errors.length+': '+errors.join(' · ');
+  } else {
+    errEl.textContent = errors.join(' · ');
+  }
+});
+document.getElementById('ex-iss').addEventListener('click', loadIssExample);
+document.getElementById('ex-gps').addEventListener('click', loadGpsExample);
+document.getElementById('ex-geo').addEventListener('click', loadGeoExample);
+
+/* ============================== playback ============================== */
+let playing = true;
+const SPEED_STEPS = [1,30,60,300,3600,86400,604800];
+let speedIdx = 0;
+const btnPlay = document.getElementById('btn-play');
+btnPlay.addEventListener('click', ()=>{ playing = !playing; btnPlay.textContent = playing ? 'Pause' : 'Play'; });
+document.getElementById('btn-reset-tracks').addEventListener('click', ()=>{ satellites.forEach(s=> s.track = []); syncTrackVisuals(); });
+const speedSlider = document.getElementById('speed');
+const speedLabel = document.getElementById('speed-label');
+speedSlider.addEventListener('input', ()=>{ speedIdx = parseInt(speedSlider.value,10); speedLabel.textContent = 'speed: \u00d7'+SPEED_STEPS[speedIdx]; });
+speedLabel.textContent = 'speed: \u00d7'+SPEED_STEPS[speedIdx];
+
+/* ============================== time-driven rendering ============================== */
+// Places a satellite's 3D marker and appends one ground-track point for the given absolute time.
+function updateSatAt(sat, absMs){
+  const st = satStateAt(sat, absMs);
+  sat.three.satMesh.position.copy(eciToScene({x:st.x, y:st.y, z:st.z}));
+  const theta = gmstRad(absMs);
+  const cosT=Math.cos(theta), sinT=Math.sin(theta);
+  const xE = st.x*cosT + st.y*sinT, yE = -st.x*sinT + st.y*cosT;
+  const lat = rad2deg(Math.asin(clamp(st.z/st.r,-1,1)));
+  const lon = rad2deg(Math.atan2(yE,xE));
+  sat.track.push([lon,lat]);
+  if(sat.track.length > 6000) sat.track.shift();
+  return st;
+}
+// Jumping in time: SGP4 gives an exact position at any moment directly (no integration needed),
+// so a big forward jump just samples points along the way to rebuild the ground track; a
+// backward jump clears the now-invalid future track and starts fresh from the new moment.
+function retimeSatellite(sat, targetMs){
+  const forward = targetMs >= sat._lastRenderedMs || sat._lastRenderedMs == null;
+  if(!forward){
+    sat.track = [];
+    updateSatAt(sat, targetMs);
+  } else {
+    const fromMs = sat._lastRenderedMs != null ? sat._lastRenderedMs : targetMs;
+    const spanMs = targetMs - fromMs;
+    const numSteps = Math.min(1200, Math.max(1, Math.ceil(spanMs/900000)));
+    for(let k=1;k<=numSteps;k++){
+      updateSatAt(sat, fromMs + spanMs*(k/numSteps));
+    }
+  }
+  sat._lastRenderedMs = targetMs;
+}
+
+function refreshAllDisplays(){
+  satellites.forEach(sat=>{
+    rebuildLiveOrbitLine(sat);
+    const m=document.getElementById('sat-meta-'+sat.id); if(m) m.textContent = satMetaText(sat);
+    if(openSatIds.has(sat.id)){
+      const box = document.getElementById('tle-box-'+sat.id);
+      if(box) box.textContent = buildTLE(sat);
+    }
+  });
+  syncTrackVisuals();
+  document.getElementById('hud-globe').innerHTML = satellites.length
+    ? (satellites.length+' satellite'+(satellites.length>1?'s':'')+' tracked<br>tap a card below to inspect')
+    : 'Add a satellite to begin';
+}
+
+/* ---- editable current-time control ---- */
+const timeInput = document.getElementById('time-input');
+function msToDatetimeLocalUTC(ms){
+  const d = new Date(ms);
+  const p = n=>String(n).padStart(2,'0');
+  return d.getUTCFullYear()+'-'+p(d.getUTCMonth()+1)+'-'+p(d.getUTCDate())+'T'+p(d.getUTCHours())+':'+p(d.getUTCMinutes())+':'+p(d.getUTCSeconds());
+}
+function datetimeLocalUTCToMs(str){
+  const m = str.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/);
+  if(!m) return null;
+  return Date.UTC(+m[1], +m[2]-1, +m[3], +m[4], +m[5], +(m[6]||0));
+}
+function jumpToTime(targetMs){
+  simClockMs = targetMs;
+  earthMesh.rotation.y = gmstRad(simClockMs);
+  updateSunLight(simClockMs);
+  satellites.forEach(sat=> retimeSatellite(sat, simClockMs));
+  refreshAllDisplays();
+}
+timeInput.addEventListener('change', ()=>{
+  const ms = datetimeLocalUTCToMs(timeInput.value);
+  if(ms == null) return;
+  jumpToTime(ms);
+});
+document.getElementById('btn-time-now').addEventListener('click', ()=> jumpToTime(Date.now()));
+timeInput.value = msToDatetimeLocalUTC(simClockMs);
+
+/* ============================== animation loop ============================== */
+let lastT = performance.now();
+let telemAccum = 0;
+function animate(now){
+  requestAnimationFrame(animate);
+  const dtReal = Math.min((now-lastT)/1000, 0.25);
+  lastT = now;
+
+  if(playing){
+    const dtSim = dtReal*SPEED_STEPS[speedIdx];
+    const newClockMs = simClockMs + dtSim*1000;
+    earthMesh.rotation.y = gmstRad(newClockMs);
+    updateSunLight(newClockMs);
+
+    if(satellites.length) satellites.forEach(sat=> retimeSatellite(sat, newClockMs));
+    simClockMs = newClockMs;
+
+    telemAccum += dtReal;
+    if(telemAccum > 0.15){
+      telemAccum = 0;
+      refreshAllDisplays();
+      if(document.activeElement !== timeInput) timeInput.value = msToDatetimeLocalUTC(simClockMs);
+    }
+  }
+  renderer.render(scene, camera);
+}
+
+/* ============================== init ============================== */
+resizeThree();
+resizeGT();
+earthMesh.rotation.y = gmstRad(simClockMs);
+updateSunLight(simClockMs);
+applyLightingMode();
+loadIssExample();
+loadGpsExample();
+loadGeoExample();
+refreshAllDisplays();
+requestAnimationFrame(animate);
+
+</script>
+</body>
+</html>
