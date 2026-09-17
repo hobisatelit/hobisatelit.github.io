@@ -80,16 +80,16 @@
     <button id="btn-parse">Parse & Estimate</button>
     <button id="btn-play">Play</button>
     <select id="speed">
-      <option value="0.2">0.2Ã</option>
-      <option value="1" selected>1Ã</option>
-      <option value="5">5Ã</option>
-      <option value="10">10Ã</option>
-      <option value="30">30Ã</option>
-      <option value="60">60Ã</option>
+      <option value="0.2">0.2×</option>
+      <option value="1" selected>1×</option>
+      <option value="5">5×</option>
+      <option value="10">10×</option>
+      <option value="30">30×</option>
+      <option value="60">60×</option>
       <option value="300">5 min/s</option>
-      <option value="-1">â1Ã</option>
-      <option value="-5">â5Ã</option>
-      <option value="-30">â30Ã</option>
+      <option value="-1">−1×</option>
+      <option value="-5">−5×</option>
+      <option value="-30">−30×</option>
     </select>
     <label>Fallback Alt
       <input type="number" id="sat-alt" value="500" step="50" min="150" max="45000"> km
@@ -109,7 +109,7 @@
     <div class="toggle-box">
       <label><input type="checkbox" id="tog-const" checked> Constellations</label>
       <label><input type="checkbox" id="tog-bodies" checked> Sun/Moon</label>
-      <label><input type="checkbox" id="tog-alt" checked> AltitudeÂ°</label>
+      <label><input type="checkbox" id="tog-alt" checked> Altitude°</label>
     </div>
     <label style="font-size:.78rem;color:var(--muted);display:flex;align-items:center;gap:4px;cursor:pointer">
       Load stars
@@ -151,7 +151,7 @@
 </div>
 
 <div class="time-bar">
-  <span id="time-display">â</span>
+  <span id="time-display">—</span>
   <input type="range" id="time-slider" min="0" max="1000" value="0">
 </div>
 
@@ -255,7 +255,7 @@ function rv2coe(r,v){
 }
 
 /* ============================================================
-   Star catalog â from hip_stars.csv (fetch, file picker, or embedded)
+   Star catalog – from hip_stars.csv (fetch, file picker, or embedded)
    Format: hip,ra_deg,dec_deg,hp_mag
    ============================================================ */
 let HIP_STARS = []; // {hip, ra, dec, mag}
@@ -497,7 +497,7 @@ function unwrapLongitudes(latlngs){
 }
 
 /* ============================================================
-   3D Globe â equator horizontal, drag right = turn right
+   3D Globe – equator horizontal, drag right = turn right
    ============================================================ */
 let scene,camera,renderer,earth,earthGroup,satGroup,orbitGroup,obsMarker,equatorLine;
 let globeDistance=3.2;
@@ -560,7 +560,7 @@ function initGlobe(){
     if(!dragging) return;
     const dx = e.clientX - px;
     const dy = e.clientY - py;
-    // Drag right â Earth turns right
+    // Drag right → Earth turns right
     globeLon -= dx * 0.005;
     globeLat += dy * 0.005;
     globeLat = Math.max(-Math.PI/2+0.05, Math.min(Math.PI/2-0.05, globeLat));
@@ -579,7 +579,7 @@ function initGlobe(){
 }
 
 function applyGlobeRotation(){
-  // YXZ: yaw (longitude) then pitch (latitude) â keeps equator horizontal
+  // YXZ: yaw (longitude) then pitch (latitude) — keeps equator horizontal
   earthGroup.rotation.order = 'YXZ';
   earthGroup.rotation.set(globeLat, globeLon, 0);
 }
@@ -637,9 +637,9 @@ function focusGlobeOnData(){
   const lat = Math.asin(Math.max(-1, Math.min(1, cz / r))); // rad
   const lon = Math.atan2(cy, cx);                           // rad
 
-  // Map ECEF â Three.js (x, z, -y). Point at (lat,lon) should face +Z (camera).
-  // Unrotated Three.js vector: (cosL cosÎ», sinL, -cosL sinÎ»)
-  // Rotation Y by (-lon - Ï/2) then X by lat brings it to ~+Z with equator level.
+  // Map ECEF → Three.js (x, z, -y). Point at (lat,lon) should face +Z (camera).
+  // Unrotated Three.js vector: (cosL cosλ, sinL, -cosL sinλ)
+  // Rotation Y by (-lon - π/2) then X by lat brings it to ~+Z with equator level.
   globeLon = -lon - Math.PI / 2;
   globeLat = lat;
   applyGlobeRotation();
@@ -661,7 +661,7 @@ let map,markersLayer,iodLayer,orbitLayer;
 function initMap(){
   map=L.map('map',{worldCopyJump:true}).setView([20,0],2);
   L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
-    {attribution:'Â© OSM Â© CARTO',maxZoom:18}).addTo(map);
+    {attribution:'© OSM © CARTO',maxZoom:18}).addTo(map);
   markersLayer=L.layerGroup().addTo(map);
   iodLayer=L.layerGroup().addTo(map);
   orbitLayer=L.layerGroup().addTo(map);
@@ -706,7 +706,7 @@ function updateMap(positions,orbitTracks,iodTracks){
 }
 
 /* ============================================================
-   Sky View â zoom-driven magnitude LOD from hip_stars.csv
+   Sky View – zoom-driven magnitude LOD from hip_stars.csv
    ============================================================ */
 let skyScene,skyCamera,skyRenderer,skySatGroup,skyTrailGroup,skyLabelGroup;
 let skyStarGroup, skyConstGroup, skyAltGroup;
@@ -736,9 +736,9 @@ function azElToSky(az,el,r=85){
   );
 }
 
-/** FOV â magnitude: zoom in (small FOV) â higher mag limit (fainter stars) */
+/** FOV ↔ magnitude: zoom in (small FOV) → higher mag limit (fainter stars) */
 function magFromFOV(fov){
-  // FOV 100 â mag 4, FOV 25 â mag 12
+  // FOV 100 → mag 4, FOV 25 → mag 12
   const t = Math.max(0, Math.min(1, (100 - fov) / 75));
   return 4 + t * 8;
 }
@@ -770,7 +770,7 @@ function buildAltitudeCircles(){
       new THREE.LineBasicMaterial({color:0x475569, transparent:true, opacity:0.4})
     ));
     if(alt > 0){
-      const sp = createTextSprite(alt+'Â°', '#94a3b8', 0.35);
+      const sp = createTextSprite(alt+'°', '#94a3b8', 0.35);
       sp.position.set(0, y+1.5, r);
       skyAltGroup.add(sp);
     }
@@ -913,7 +913,7 @@ function updateSkyView(positions, satellites){
     drawn++;
   }
 
-  // Constellation stick figures (real RA/Dec â Az/El for current time & location)
+  // Constellation stick figures (real RA/Dec → Az/El for current time & location)
   if (showConst) {
     Object.entries(CONSTELLATIONS).forEach(([name, verts]) => {
       const pts = [];
@@ -946,7 +946,7 @@ function updateSkyView(positions, satellites){
   // Update status with how many are visible at current zoom
   const statusEl = document.getElementById('star-status');
   if (HIP_STARS.length) {
-    statusEl.textContent = `Stars: ${drawn} visible (mag < ${limit.toFixed(1)}, zoom FOV ${skyCamera.fov.toFixed(0)}Â°)`;
+    statusEl.textContent = `Stars: ${drawn} visible (mag < ${limit.toFixed(1)}, zoom FOV ${skyCamera.fov.toFixed(0)}°)`;
   }
 
   // Satellite trails
@@ -1104,15 +1104,15 @@ function loadObservations(){
     const div = document.createElement('div');
     div.className = 'sat-item';
     let html = `<div class="sat-header"><span class="dot" style="background:${s.color}"></span><strong>${id}</strong> (${s.obs.length})</div>`;
-    html += `<div class="param">Alt â <span>${(s.estimatedAlt||fallbackAlt).toFixed(0)} km</span></div>`;
-    if(s.inclination != null) html += `<div class="param">Incl â <span class="i">${s.inclination.toFixed(1)}Â°</span></div>`;
-    if(s.eccentricity != null) html += `<div class="param">Ecc â <span class="e">${s.eccentricity.toFixed(4)}</span></div>`;
-    if(s.periodMin != null) html += `<div class="param">Period â <span>${s.periodMin.toFixed(1)} min</span></div>`;
+    html += `<div class="param">Alt ≈ <span>${(s.estimatedAlt||fallbackAlt).toFixed(0)} km</span></div>`;
+    if(s.inclination != null) html += `<div class="param">Incl ≈ <span class="i">${s.inclination.toFixed(1)}°</span></div>`;
+    if(s.eccentricity != null) html += `<div class="param">Ecc ≈ <span class="e">${s.eccentricity.toFixed(4)}</span></div>`;
+    if(s.periodMin != null) html += `<div class="param">Period ≈ <span>${s.periodMin.toFixed(1)} min</span></div>`;
     div.innerHTML = html;
     list.appendChild(div);
   });
   document.getElementById('status').textContent =
-    `Loaded ${observations.length} obs â¢ ${Object.keys(satellites).length} object(s)`;
+    `Loaded ${observations.length} obs • ${Object.keys(satellites).length} object(s)`;
 
   const iodTracks = Object.values(satellites).filter(s=>s.iodTrack).map(s=>s.iodTrack);
   setTimeout(()=>{
