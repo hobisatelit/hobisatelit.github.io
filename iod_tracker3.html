@@ -100,6 +100,12 @@
       <input type="range" id="sat-size-slider" min="0.5" max="3" value="0.5" step="0.1">
     </div>
 
+    <div class="slider-box" title="Show stars brighter than this magnitude">
+      <span>Mag &lt;</span>
+      <input type="range" id="mag-slider" min="1" max="12" value="4" step="0.5">
+      <span id="mag-label">4.0</span>
+    </div>
+
     <div class="toggle-box">
       <label><input type="checkbox" id="tog-const" checked> Constellations</label>
       <label><input type="checkbox" id="tog-bodies" checked> Sun/Moon</label>
@@ -444,7 +450,7 @@ let simTime=0,minTime=0,maxTime=0,playing=false,lastFrame=performance.now();
 let observer={lat:0,lon:0,alt:0},fallbackAlt=500;
 let satSize=0.5; // smallest by default
 let showBodies=true, showAlt=true, showConst=true;
-const MAG_MAX = 7.0; // fixed: show stars brighter than mag 7
+let magLimit = 4.0; // show stars with mag < magLimit (slider; independent of zoom)
 
 /* Classic constellation stick figures: [ra_deg, dec_deg] vertices (independent of HIP catalog) */
 const CONSTELLATIONS = {
@@ -730,7 +736,7 @@ function azElToSky(az,el,r=85){
   );
 }
 
-/* Magnitude limit is fixed at MAG_MAX (7). Zoom only changes camera FOV. */
+/* magLimit is set by the Mag slider only. Zoom only changes camera FOV. */
 
 function buildAltitudeCircles(){
   if(skyAltGroup) skyScene.remove(skyAltGroup);
@@ -870,10 +876,11 @@ function updateSkyView(positions, satellites){
   const lst = (gmst(jd) + observer.lon + 360) % 360;
   const lat = observer.lat;
 
-  // Fixed magnitude limit (mag < 7)
-  const limit = MAG_MAX;
+  // Magnitude limit from slider only (not affected by zoom)
+  const limit = magLimit;
 
   // Draw stars from catalog that are brighter than limit and above horizon
+  // Positions use LST from IOD simulation time + observer lat/lon
   let drawn = 0;
   for (const s of HIP_STARS) {
     if (s.mag >= limit) break; // catalog is sorted by mag
@@ -890,40 +897,53 @@ function updateSkyView(positions, satellites){
     drawn++;
   }
 
-  // Constellation stick figures (real RA/Dec → Az/El for current time & location)
+  // Constellations: real RA/Dec → Az/El at IOD time & observer location
+  // (same sky the observer would see on that date)
   if (showConst) {
     Object.entries(CONSTELLATIONS).forEach(([name, verts]) => {
-      const pts = [];
+      const skyPts = []; // {pos, el} for each vertex
       verts.forEach(([ra, dec]) => {
         const {az, el} = raDecToAzEl(ra, dec, lat, lst);
-        if (el > -8) pts.push(azElToSky(az, el, 90));
+        skyPts.push({ pos: azElToSky(az, el, 90), el, az });
       });
-      if (pts.length < 2) return;
-      skyConstGroup.add(new THREE.Line(
-        new THREE.BufferGeometry().setFromPoints(pts),
-        new THREE.LineBasicMaterial({color:0xa5b4fc, transparent:true, opacity:0.7})
-      ));
-      pts.forEach(p => {
+
+      // Draw line segments only between consecutive stars both above horizon
+      for (let i = 0; i < skyPts.length - 1; i++) {
+        const a = skyPts[i], b = skyPts[i + 1];
+        if (a.el < -5 || b.el < -5) continue;
+        skyConstGroup.add(new THREE.Line(
+          new THREE.BufferGeometry().setFromPoints([a.pos, b.pos]),
+          new THREE.LineBasicMaterial({color:0xa5b4fc, transparent:true, opacity:0.75})
+        ));
+      }
+
+      // Markers + label only for stars above horizon
+      const above = skyPts.filter(p => p.el > -5);
+      if (above.length === 0) return;
+      above.forEach(p => {
         const m = new THREE.Mesh(
           new THREE.SphereGeometry(0.45, 6, 6),
           new THREE.MeshBasicMaterial({color:0xc7d2fe})
         );
-        m.position.copy(p);
+        m.position.copy(p.pos);
         skyConstGroup.add(m);
       });
-      let ax=0,ay=0,az=0;
-      pts.forEach(p => { ax+=p.x; ay+=p.y; az+=p.z; });
-      ax/=pts.length; ay/=pts.length; az/=pts.length;
-      const sp = createTextSprite(name, '#a5b4fc', 0.38);
-      sp.position.set(ax, ay+3.5, az);
-      skyConstGroup.add(sp);
+      let ax=0, ay=0, az=0;
+      above.forEach(p => { ax+=p.pos.x; ay+=p.pos.y; az+=p.pos.z; });
+      ax/=above.length; ay/=above.length; az/=above.length;
+      // Only label if average elevation is reasonably high
+      const avgEl = above.reduce((s,p)=>s+p.el,0) / above.length;
+      if (avgEl > 5) {
+        const sp = createTextSprite(name, '#a5b4fc', 0.38);
+        sp.position.set(ax, ay+3.5, az);
+        skyConstGroup.add(sp);
+      }
     });
   }
 
-  // Update status with how many are visible at current zoom
   const statusEl = document.getElementById('star-status');
   if (HIP_STARS.length) {
-    statusEl.textContent = `Stars: ${drawn} visible (mag < ${limit.toFixed(1)}, zoom FOV ${skyCamera.fov.toFixed(0)}°)`;
+    statusEl.textContent = `Stars: ${drawn} visible (mag < ${limit.toFixed(1)})`;
   }
 
   // Satellite trails
@@ -1162,6 +1182,11 @@ document.getElementById('time-slider').addEventListener('input', e=>{
 
 bindStarFileInput();
 
+document.getElementById('mag-slider').addEventListener('input', e=>{
+  magLimit = +e.target.value;
+  document.getElementById('mag-label').textContent = magLimit.toFixed(1);
+  updateSimulation();
+});
 document.getElementById('sat-size-slider').addEventListener('input', e=>{
   satSize = +e.target.value;
   updateSimulation();
