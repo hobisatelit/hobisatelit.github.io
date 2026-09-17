@@ -18,7 +18,7 @@
   html,body{margin:0;padding:0;}
   body{ background:var(--bg); color:var(--text); font-family:'Space Grotesk',system-ui,sans-serif; font-size:15px; line-height:1.5; -webkit-font-smoothing:antialiased; }
   .mono{ font-family:'IBM Plex Mono', ui-monospace, monospace; }
-  #app{ max-width:90%; margin:0 auto; }
+  #app{ max-width:720px; margin:0 auto; }
 
   /* sticky: globe + ground track together */
   #sticky-header{ position:sticky; top:0; z-index:30; background:var(--bg); border-bottom:1px solid var(--line); padding:10px 14px 10px; }
@@ -26,11 +26,36 @@
   .topbar h1{ margin:0; font-size:16.5px; font-weight:700; letter-spacing:-0.01em; }
   .topbar .sub{ font-size:11px; color:var(--text-faint); }
 
-  #viewport-wrap{ position:relative; width:100%; aspect-ratio:16/10; max-height:300px; min-height:140px; background:radial-gradient(ellipse at 50% 30%, #0e1830 0%, #05070f 75%); border-radius:var(--radius); overflow:hidden; touch-action:none; }
+  #viewport-wrap{ position:relative; width:100%; aspect-ratio:16/10; max-height:180px; min-height:140px; background:radial-gradient(ellipse at 50% 30%, #0e1830 0%, #05070f 75%); border-radius:var(--radius); overflow:hidden; touch-action:none; }
   #three-canvas{ display:block; width:100%; height:100%; }
   .hud{ position:absolute; pointer-events:none; font-family:'IBM Plex Mono',monospace; font-size:10px; color:var(--text); background:rgba(7,10,19,0.55); padding:4px 6px; border:1px solid var(--line); border-radius:var(--radius); line-height:1.5; max-width:60%; }
   .hud-tl{ top:6px; left:6px; }
-  .drag-hint{ position:absolute; bottom:4px; left:50%; transform:translateX(-50%); font-size:9.5px; color:var(--text-faint); pointer-events:none; text-align:center; line-height:1.5; width:92%; }
+  .globe-overlay-controls{
+    position:absolute; left:0; right:0; bottom:0; z-index:4;
+    display:flex; align-items:center; gap:6px; flex-wrap:nowrap;
+    padding:6px 7px; background:rgba(7,10,19,0.72); backdrop-filter:blur(2px);
+  }
+  .globe-overlay-controls button.tiny-btn{ font-size:11px; padding:5px 9px; flex-shrink:0; }
+  .globe-overlay-controls input[type=range]{ width:auto; flex:1; min-width:36px; height:22px; }
+  .globe-overlay-controls .tiny-label{ font-size:9.5px; color:var(--text-dim); white-space:nowrap; flex-shrink:0; font-family:'IBM Plex Mono',monospace; }
+  #viewport-wrap.is-fullscreen .globe-overlay-controls{ padding:12px 16px; gap:12px; }
+  #viewport-wrap.is-fullscreen .globe-overlay-controls button.tiny-btn{ font-size:14px; padding:9px 16px; }
+  #viewport-wrap.is-fullscreen .globe-overlay-controls .tiny-label{ font-size:12px; }
+
+  #globe-side-panel{
+    display:none; position:absolute; z-index:6; flex-direction:column;
+    top:0; right:0; bottom:0; width:min(320px, 46vw);
+    background:rgba(9,13,24,0.97); border-left:1px solid var(--line);
+  }
+  #globe-side-panel.open{ display:flex; }
+  .gsp-header{ display:flex; align-items:center; gap:8px; padding:10px; border-bottom:1px solid var(--line-soft); flex-shrink:0; }
+  .gsp-dot{ width:11px; height:11px; border-radius:50%; flex-shrink:0; }
+  .gsp-name{ flex:1; font-size:13.5px; font-weight:600; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  #gsp-close{ padding:4px 8px; font-size:12px; flex-shrink:0; }
+  .gsp-body{ flex:1; overflow-y:auto; padding:6px 10px 16px; -webkit-overflow-scrolling:touch; }
+  @media (max-width:560px){
+    #globe-side-panel{ top:auto; left:0; right:0; bottom:0; width:auto; height:64vh; border-left:none; border-top:1px solid var(--line); border-radius:10px 10px 0 0; }
+  }
   .map-note{
     position:absolute; bottom:5px; left:50%; transform:translateX(-50%);
     background:rgba(7,10,19,0.85); color:var(--text); border:1px solid var(--line);
@@ -53,6 +78,7 @@
     font-family:'IBM Plex Mono',monospace; font-size:11.5px; padding:5px 6px; flex:1; min-width:170px;
   }
   #time-input:focus{ outline:none; border-color:var(--accent); }
+  #time-input.invalid{ border-color:#ff7a90; color:#ff7a90; }
   .time-hint{ font-size:9.5px; color:var(--text-faint); margin-top:3px; }
   button{ font-family:'Space Grotesk',sans-serif; background:var(--panel); color:var(--text); border:1px solid var(--line); padding:6px 11px; border-radius:var(--radius); font-size:12.5px; cursor:pointer; }
   button:active{ background:var(--bg-raise); }
@@ -146,24 +172,35 @@
       <div class="hud hud-tl" id="hud-globe"></div>
       <button class="reset-view-btn" id="btn-reset-cam">Reset view</button>
       <button class="fullscreen-btn" id="btn-fullscreen-globe">&#9974;</button>
-      <div class="drag-hint">drag to rotate · pinch or scroll to zoom in close<br>bright = orbit now · faint = orbit at epoch</div>
+      <div class="globe-overlay-controls">
+        <button class="primary tiny-btn" id="btn-play">Pause</button>
+        <input type="range" id="speed" min="0" max="7" step="1" value="3">
+        <span id="speed-label" class="tiny-label"></span>
+        <span class="tiny-label">dot</span>
+        <input type="range" id="dotsize" min="0.02" max="0.24" step="0.005" value="0.055">
+      </div>
+      <div id="globe-side-panel">
+        <div class="gsp-header">
+          <span class="gsp-dot" id="gsp-dot"></span>
+          <span class="gsp-name" id="gsp-name"></span>
+          <button id="gsp-close">&#10005;</button>
+        </div>
+        <div class="gsp-body" id="gsp-body"></div>
+      </div>
     </div>
 
     <div class="viewport-controls">
-      <button class="primary" id="btn-play">Pause</button>
       <button id="btn-reset-tracks">Reset all tracks</button>
-      <input type="range" id="speed" min="0" max="6" step="1" value="0" style="width:95px;">
-      <span id="speed-label"></span>
       <button id="btn-map-mode">Real map</button>
       <button id="btn-night-mode">Disable night</button>
     </div>
 
     <div class="time-row">
       <span class="mini-title">Current time (UTC)</span>
-      <input type="datetime-local" id="time-input" step="1">
+      <input type="text" id="time-input" inputmode="numeric" autocomplete="off" spellcheck="false" placeholder="yyyy-mm-dd hh:mm:ss">
       <button id="btn-time-now">Now</button>
     </div>
-    <div class="time-hint">Positions use real SGP4 propagation. Accuracy drops the further this is from each satellite's TLE epoch, and further still for deep-space orbits (GPS/GEO/Molniya-class) — see "About" below.</div>
+    <div class="time-hint">24-hour, yyyy-mm-dd hh:mm:ss, UTC. Positions use real SGP4 propagation — accuracy drops the further this is from each satellite's TLE epoch, and further still for deep-space orbits (GPS/GEO/Molniya-class) — see "About" below.</div>
 
     <div class="sticky-subpanel">
       <div class="mini-title-row">
@@ -703,6 +740,7 @@ const PALETTE = ['#56d6ff','#ffb454','#35e6b0','#ff7a90','#b48cff','#f4e04d','#7
 let satellites = [];
 let nextSatId = 1;
 let selectedForCamera = null;
+let satDotSize = 0.055;
 const openSatIds = new Set();
 
 const PARAM_DEFS = [
@@ -758,11 +796,15 @@ function addSatellite(elements){
   const orbitLine = new THREE.Line(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ color: new THREE.Color(color), transparent:true, opacity:0.32 }));
   // Bright, live: the same plane as actually perturbed by J2 + drag up to the current time — this is the one that visibly precesses.
   const orbitLineNow = new THREE.Line(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ color: new THREE.Color(color) }));
-  const satMesh = new THREE.Mesh(new THREE.SphereGeometry(0.055,16,16), new THREE.MeshBasicMaterial({ color: new THREE.Color(color) }));
+  const satMesh = new THREE.Mesh(new THREE.SphereGeometry(1,16,16), new THREE.MeshBasicMaterial({ color: new THREE.Color(color) }));
+  satMesh.scale.setScalar(satDotSize);
+  // Invisible, generously-sized proxy kept in sync with satMesh's position — the actual tap target,
+  // decoupled from the (adjustable, sometimes tiny) visual dot size so satellites stay easy to tap.
+  const hitProxy = new THREE.Mesh(new THREE.SphereGeometry(0.11,8,8), new THREE.MeshBasicMaterial({ transparent:true, opacity:0, depthWrite:false }));
   const groundTrackLine3D = new THREE.Line(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ color: new THREE.Color(color) }));
-  scene.add(orbitLine, orbitLineNow, satMesh);
+  scene.add(orbitLine, orbitLineNow, satMesh, hitProxy);
   earthMesh.add(groundTrackLine3D); // child of the globe, so the trail spins with the planet like paint on its surface
-  sat.three = { orbitLine, orbitLineNow, satMesh, groundTrackLine3D };
+  sat.three = { orbitLine, orbitLineNow, satMesh, hitProxy, groundTrackLine3D };
 
   satellites.push(sat);
   rebuildOrbitLine(sat);
@@ -777,7 +819,8 @@ function removeSatellite(id){
   const idx = satellites.findIndex(s=>s.id===id);
   if(idx===-1) return;
   const sat = satellites[idx];
-  scene.remove(sat.three.orbitLine, sat.three.orbitLineNow, sat.three.satMesh);
+  if(gspSatId === id) closeGlobeSidePanel();
+  scene.remove(sat.three.orbitLine, sat.three.orbitLineNow, sat.three.satMesh, sat.three.hitProxy);
   earthMesh.remove(sat.three.groundTrackLine3D);
   sat.three.orbitLine.geometry.dispose();
   sat.three.orbitLineNow.geometry.dispose();
@@ -961,11 +1004,19 @@ function updateCamera(){
 updateCamera();
 const pointers = new Map();
 let lastPinchDist = null;
+let tapCandidate = null;
+let tapMoved = 0;
 canvas.style.touchAction = 'none';
-canvas.addEventListener('pointerdown', e=>{ canvas.setPointerCapture(e.pointerId); pointers.set(e.pointerId,{x:e.clientX,y:e.clientY}); });
+canvas.addEventListener('pointerdown', e=>{
+  canvas.setPointerCapture(e.pointerId);
+  pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
+  if(pointers.size===1){ tapCandidate = {x:e.clientX,y:e.clientY,id:e.pointerId}; tapMoved = 0; }
+  else { tapCandidate = null; }
+});
 canvas.addEventListener('pointermove', e=>{
   if(!pointers.has(e.pointerId)) return;
   const prev = pointers.get(e.pointerId); const cur = {x:e.clientX,y:e.clientY}; pointers.set(e.pointerId,cur);
+  if(tapCandidate && e.pointerId===tapCandidate.id){ tapMoved = Math.hypot(cur.x-tapCandidate.x, cur.y-tapCandidate.y); }
   if(pointers.size===1){
     const dx=cur.x-prev.x, dy=cur.y-prev.y;
     camState.theta -= dx*0.007;
@@ -978,12 +1029,60 @@ canvas.addEventListener('pointermove', e=>{
     lastPinchDist = dist;
   }
 });
-function releasePointer(e){ pointers.delete(e.pointerId); lastPinchDist=null; }
+function releasePointer(e){
+  if(tapCandidate && e.pointerId===tapCandidate.id && tapMoved<6 && pointers.size===1){
+    handleGlobeTap(tapCandidate.x, tapCandidate.y);
+  }
+  tapCandidate = null;
+  pointers.delete(e.pointerId); lastPinchDist=null;
+}
 canvas.addEventListener('pointerup', releasePointer);
 canvas.addEventListener('pointercancel', releasePointer);
 canvas.addEventListener('pointerleave', releasePointer);
 canvas.addEventListener('wheel', e=>{ e.preventDefault(); camState.radius = clamp(camState.radius + e.deltaY*0.01, CAM_MIN_R, CAM_MAX_R); updateCamera(); }, { passive:false });
 document.getElementById('btn-reset-cam').addEventListener('click', ()=>{ camState.theta=0.7; camState.phi=1.15; camState.radius=8.5; updateCamera(); });
+
+const raycaster = new THREE.Raycaster();
+const raycastNDC = new THREE.Vector2();
+function handleGlobeTap(clientX, clientY){
+  const rect = canvas.getBoundingClientRect();
+  raycastNDC.x = ((clientX-rect.left)/rect.width)*2-1;
+  raycastNDC.y = -((clientY-rect.top)/rect.height)*2+1;
+  raycaster.setFromCamera(raycastNDC, camera);
+  const proxies = satellites.map(s=>s.three.hitProxy);
+  const hits = raycaster.intersectObjects(proxies);
+  if(hits.length){
+    const sat = satellites.find(s=>s.three.hitProxy===hits[0].object);
+    if(sat) selectSatelliteOnGlobe(sat);
+  }
+}
+let gspSatId = null;
+function selectSatelliteOnGlobe(sat){
+  if(globeFS){
+    openGlobeSidePanel(sat);
+    return;
+  }
+  openSatIds.add(sat.id);
+  const body = document.getElementById('body-'+sat.id);
+  const toggleBtn = document.getElementById('toggle-'+sat.id);
+  if(!body || !toggleBtn) return;
+  buildSatBody(sat, body);
+  body.style.display = 'block';
+  toggleBtn.textContent = '\u2013 edit orbit & BSTAR';
+  toggleBtn.scrollIntoView({ behavior:'smooth', block:'center' });
+}
+function openGlobeSidePanel(sat){
+  gspSatId = sat.id;
+  document.getElementById('gsp-dot').style.background = sat.color;
+  document.getElementById('gsp-name').textContent = sat.name;
+  buildSatBody(sat, document.getElementById('gsp-body'), 'gsp', 'gsp-tle-box');
+  document.getElementById('globe-side-panel').classList.add('open');
+}
+function closeGlobeSidePanel(){
+  gspSatId = null;
+  document.getElementById('globe-side-panel').classList.remove('open');
+}
+document.getElementById('gsp-close').addEventListener('click', closeGlobeSidePanel);
 
 function resizeThree(){
   const w = wrap.clientWidth, h = wrap.clientHeight;
@@ -1136,13 +1235,15 @@ function showMapNote(text){
 /* ============================== fullscreen toggles (CSS-based, works in embedded webviews) ============================== */
 const gtWrap = document.getElementById('gt-wrap');
 let globeFS = false, gtFS = false;
-document.getElementById('btn-fullscreen-globe').addEventListener('click', ()=>{
-  globeFS = !globeFS;
+function setGlobeFullscreen(on){
+  globeFS = on;
   wrap.classList.toggle('is-fullscreen', globeFS);
   document.body.style.overflow = globeFS ? 'hidden' : '';
   document.getElementById('btn-fullscreen-globe').innerHTML = globeFS ? '&#10005;' : '&#9974;';
+  if(!on) closeGlobeSidePanel();
   requestAnimationFrame(resizeThree);
-});
+}
+document.getElementById('btn-fullscreen-globe').addEventListener('click', ()=> setGlobeFullscreen(!globeFS));
 document.getElementById('btn-fullscreen-gt').addEventListener('click', ()=>{
   gtFS = !gtFS;
   gtWrap.classList.toggle('is-fullscreen', gtFS);
@@ -1150,6 +1251,7 @@ document.getElementById('btn-fullscreen-gt').addEventListener('click', ()=>{
   document.getElementById('btn-fullscreen-gt').innerHTML = gtFS ? '&#10005;' : '&#9974;';
   requestAnimationFrame(resizeGT);
 });
+
 
 /* ============================== satellite list UI ============================== */
 const satList = document.getElementById('sat-list');
@@ -1196,7 +1298,9 @@ function renderSatList(){
 }
 function escapeHtml(s){ return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
-function buildSatBody(sat, container){
+function buildSatBody(sat, container, idPrefix, tleBoxId){
+  idPrefix = idPrefix || ('s'+sat.id);
+  tleBoxId = tleBoxId || ('tle-box-'+sat.id);
   container.style.setProperty('--sat-color', sat.color);
   let html = '';
   PARAM_DEFS.forEach(p=>{
@@ -1204,18 +1308,18 @@ function buildSatBody(sat, container){
       '<div class="control-row" style="--sat-color:'+sat.color+'">'+
         '<div class="control-head">'+
           '<label>'+p.label+'</label>'+
-          '<div class="input-group"><input type="number" class="numbox" id="s'+sat.id+'-n-'+p.key+'" inputmode="decimal" step="'+p.step+'" min="'+p.min+'" max="'+p.max+'"><span class="unit">'+p.unit+'</span></div>'+
+          '<div class="input-group"><input type="number" class="numbox" id="'+idPrefix+'-n-'+p.key+'" inputmode="decimal" step="'+p.step+'" min="'+p.min+'" max="'+p.max+'"><span class="unit">'+p.unit+'</span></div>'+
         '</div>'+
-        '<input type="range" id="s'+sat.id+'-r-'+p.key+'" min="'+p.min+'" max="'+p.max+'" step="'+p.step+'" style="--sat-color:'+sat.color+'">'+
+        '<input type="range" id="'+idPrefix+'-r-'+p.key+'" min="'+p.min+'" max="'+p.max+'" step="'+p.step+'" style="--sat-color:'+sat.color+'">'+
       '</div>';
   });
   html += '<div class="mini-title-row" style="margin-top:8px;"><span class="mini-title">Live TLE for this satellite</span></div>';
-  html += '<div class="tle-box mono" id="tle-box-'+sat.id+'" style="--sat-color:'+sat.color+'"></div>';
+  html += '<div class="tle-box mono" id="'+tleBoxId+'" style="--sat-color:'+sat.color+'"></div>';
   container.innerHTML = html;
 
   PARAM_DEFS.forEach(p=>{
-    const rangeEl = document.getElementById('s'+sat.id+'-r-'+p.key);
-    const numEl = document.getElementById('s'+sat.id+'-n-'+p.key);
+    const rangeEl = document.getElementById(idPrefix+'-r-'+p.key);
+    const numEl = document.getElementById(idPrefix+'-n-'+p.key);
     rangeEl.value = sat[p.key];
     numEl.value = sat[p.key].toFixed(p.fmt);
     rangeEl.addEventListener('input', ()=>{
@@ -1234,7 +1338,7 @@ function buildSatBody(sat, container){
     numEl.addEventListener('blur', ()=>{ numEl.value = sat[p.key].toFixed(p.fmt); });
     numEl.addEventListener('keydown', e=>{ if(e.key==='Enter') numEl.blur(); });
   });
-  document.getElementById('tle-box-'+sat.id).textContent = buildTLE(sat);
+  document.getElementById(tleBoxId).textContent = buildTLE(sat);
 }
 
 /* ============================== add-satellite wiring ============================== */
@@ -1261,21 +1365,33 @@ document.getElementById('ex-geo').addEventListener('click', loadGeoExample);
 
 /* ============================== playback ============================== */
 let playing = true;
-const SPEED_STEPS = [1,30,60,300,3600,86400,604800];
-let speedIdx = 0;
+const SPEED_STEPS = [1, 30, 100, 300, 1000, 3000, 86400, 604800];
+let speedIdx = 3;
 const btnPlay = document.getElementById('btn-play');
 btnPlay.addEventListener('click', ()=>{ playing = !playing; btnPlay.textContent = playing ? 'Pause' : 'Play'; });
 document.getElementById('btn-reset-tracks').addEventListener('click', ()=>{ satellites.forEach(s=> s.track = []); syncTrackVisuals(); });
+function formatSpeedLabel(v){
+  if(v>=604800 && v%604800===0) return '\u00d7'+(v/604800)+'wk/s';
+  if(v>=86400 && v%86400===0) return '\u00d7'+(v/86400)+'d/s';
+  return '\u00d7'+v;
+}
 const speedSlider = document.getElementById('speed');
 const speedLabel = document.getElementById('speed-label');
-speedSlider.addEventListener('input', ()=>{ speedIdx = parseInt(speedSlider.value,10); speedLabel.textContent = 'speed: \u00d7'+SPEED_STEPS[speedIdx]; });
-speedLabel.textContent = 'speed: \u00d7'+SPEED_STEPS[speedIdx];
+speedSlider.addEventListener('input', ()=>{ speedIdx = parseInt(speedSlider.value,10); speedLabel.textContent = formatSpeedLabel(SPEED_STEPS[speedIdx]); });
+speedLabel.textContent = formatSpeedLabel(SPEED_STEPS[speedIdx]);
+
+const dotSizeSlider = document.getElementById('dotsize');
+function applyDotSize(){ satellites.forEach(sat=> sat.three.satMesh.scale.setScalar(satDotSize)); }
+dotSizeSlider.value = satDotSize;
+dotSizeSlider.addEventListener('input', ()=>{ satDotSize = parseFloat(dotSizeSlider.value); applyDotSize(); });
+
 
 /* ============================== time-driven rendering ============================== */
 // Places a satellite's 3D marker and appends one ground-track point for the given absolute time.
 function updateSatAt(sat, absMs){
   const st = satStateAt(sat, absMs);
   sat.three.satMesh.position.copy(eciToScene({x:st.x, y:st.y, z:st.z}));
+  sat.three.hitProxy.position.copy(sat.three.satMesh.position);
   const theta = gmstRad(absMs);
   const cosT=Math.cos(theta), sinT=Math.sin(theta);
   const xE = st.x*cosT + st.y*sinT, yE = -st.x*sinT + st.y*cosT;
@@ -1313,6 +1429,11 @@ function refreshAllDisplays(){
       if(box) box.textContent = buildTLE(sat);
     }
   });
+  if(gspSatId != null){
+    const gspSat = satellites.find(s=>s.id===gspSatId);
+    if(gspSat){ const box = document.getElementById('gsp-tle-box'); if(box) box.textContent = buildTLE(gspSat); }
+    else closeGlobeSidePanel();
+  }
   syncTrackVisuals();
   document.getElementById('hud-globe').innerHTML = satellites.length
     ? (satellites.length+' satellite'+(satellites.length>1?'s':'')+' tracked<br>tap a card below to inspect')
@@ -1321,13 +1442,13 @@ function refreshAllDisplays(){
 
 /* ---- editable current-time control ---- */
 const timeInput = document.getElementById('time-input');
-function msToDatetimeLocalUTC(ms){
+function formatSimTime(ms){
   const d = new Date(ms);
   const p = n=>String(n).padStart(2,'0');
-  return d.getUTCFullYear()+'-'+p(d.getUTCMonth()+1)+'-'+p(d.getUTCDate())+'T'+p(d.getUTCHours())+':'+p(d.getUTCMinutes())+':'+p(d.getUTCSeconds());
+  return d.getUTCFullYear()+'-'+p(d.getUTCMonth()+1)+'-'+p(d.getUTCDate())+' '+p(d.getUTCHours())+':'+p(d.getUTCMinutes())+':'+p(d.getUTCSeconds());
 }
-function datetimeLocalUTCToMs(str){
-  const m = str.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/);
+function parseSimTime(str){
+  const m = String(str).trim().match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?$/);
   if(!m) return null;
   return Date.UTC(+m[1], +m[2]-1, +m[3], +m[4], +m[5], +(m[6]||0));
 }
@@ -1338,13 +1459,20 @@ function jumpToTime(targetMs){
   satellites.forEach(sat=> retimeSatellite(sat, simClockMs));
   refreshAllDisplays();
 }
-timeInput.addEventListener('change', ()=>{
-  const ms = datetimeLocalUTCToMs(timeInput.value);
-  if(ms == null) return;
+function applyTimeInput(){
+  const ms = parseSimTime(timeInput.value);
+  if(ms == null){
+    timeInput.classList.add('invalid');
+    setTimeout(()=> timeInput.classList.remove('invalid'), 900);
+    return;
+  }
   jumpToTime(ms);
-});
+}
+timeInput.addEventListener('change', applyTimeInput);
+timeInput.addEventListener('keydown', e=>{ if(e.key==='Enter'){ applyTimeInput(); timeInput.blur(); } });
 document.getElementById('btn-time-now').addEventListener('click', ()=> jumpToTime(Date.now()));
-timeInput.value = msToDatetimeLocalUTC(simClockMs);
+timeInput.value = formatSimTime(simClockMs);
+
 
 /* ============================== animation loop ============================== */
 let lastT = performance.now();
@@ -1367,7 +1495,7 @@ function animate(now){
     if(telemAccum > 0.15){
       telemAccum = 0;
       refreshAllDisplays();
-      if(document.activeElement !== timeInput) timeInput.value = msToDatetimeLocalUTC(simClockMs);
+      if(document.activeElement !== timeInput) timeInput.value = formatSimTime(simClockMs);
     }
   }
   renderer.render(scene, camera);
