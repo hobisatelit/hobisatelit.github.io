@@ -1,0 +1,1155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IOD Tracker</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<style>
+  :root {
+    --bg:#0b0f19; --panel:#151b2d; --border:#2a3548;
+    --text:#e2e8f0; --accent:#38bdf8; --green:#4ade80;
+    --muted:#94a3b8; --orange:#fb923c; --purple:#c084fc;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);
+       display:flex;flex-direction:column;overflow:hidden}
+
+  header{padding:8px 14px;background:var(--panel);border-bottom:1px solid var(--border);
+         display:flex;align-items:center;gap:10px;flex-wrap:wrap;flex-shrink:0}
+  header h1{font-size:1.1rem;font-weight:600;color:var(--accent)}
+  .controls{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  button,select,input[type=number]{
+    background:#1e293b;color:var(--text);border:1px solid var(--border);
+    border-radius:6px;padding:5px 10px;font-size:.82rem;cursor:pointer}
+  button:hover{background:#334155}
+  button.active{background:var(--accent);color:#0f172a;font-weight:600}
+  input[type=number]{width:68px}
+  label{font-size:.78rem;color:var(--muted)}
+  .slider-box{display:flex;align-items:center;gap:6px;font-size:.78rem;color:var(--muted)}
+  .slider-box input[type=range]{width:110px}
+  .toggle-box{display:flex;gap:8px;align-items:center;font-size:.78rem}
+  .toggle-box label{display:flex;align-items:center;gap:4px;cursor:pointer;color:var(--text)}
+
+  .input-panel{
+    background:var(--panel);border-bottom:1px solid var(--border);
+    padding:10px 14px;flex-shrink:0;display:flex;flex-direction:column;gap:8px;
+    resize:vertical;overflow:auto;min-height:110px;max-height:36vh;
+  }
+  .input-row{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-start}
+  textarea{
+    flex:1;min-width:260px;height:80px;background:#0f172a;color:#e2e8f0;
+    border:1px solid var(--border);border-radius:6px;padding:8px;
+    font-family:ui-monospace,monospace;font-size:.75rem;resize:vertical}
+  .station-box{display:flex;flex-direction:column;gap:6px;min-width:200px}
+  .station-box .field-row{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+  .sat-list{display:flex;flex-wrap:wrap;gap:10px;font-size:.75rem}
+  .sat-item{background:#0f172a;border:1px solid var(--border);border-radius:6px;
+            padding:6px 10px;min-width:150px}
+  .sat-header{display:flex;align-items:center;gap:6px;margin-bottom:2px}
+  .dot{width:9px;height:9px;border-radius:50%}
+  .param{font-size:.72rem}
+  .param span{color:var(--green)}
+  .param .e{color:var(--purple)} .param .i{color:var(--orange)}
+  .status{font-size:.8rem;color:var(--green)}
+
+  .views{flex:1;display:flex;flex-direction:column;min-height:0;overflow:auto}
+  .view{
+    position:relative;background:#020617;min-height:260px;height:33vh;
+    border-bottom:1px solid var(--border);overflow:hidden;resize:vertical;
+  }
+  #globe-container,#map,#sky-container{width:100%;height:100%;display:block}
+  .view-label{
+    position:absolute;top:6px;left:6px;background:rgba(15,23,42,.92);
+    padding:3px 9px;border-radius:4px;font-size:.72rem;z-index:20;pointer-events:none;
+  }
+
+  .time-bar{background:var(--panel);border-top:1px solid var(--border);
+            padding:8px 14px;display:flex;align-items:center;gap:12px;flex-shrink:0}
+  #time-slider{flex:1;min-width:120px}
+  #time-display{font-family:ui-monospace,monospace;font-size:.85rem;min-width:210px}
+</style>
+</head>
+<body>
+<header>
+  <h1>IOD Tracker</h1>
+  <div class="controls">
+    <button id="btn-parse">Parse & Estimate</button>
+    <button id="btn-play">Play</button>
+    <select id="speed">
+      <option value="0.2">0.2×</option>
+      <option value="1" selected>1×</option>
+      <option value="5">5×</option>
+      <option value="10">10×</option>
+      <option value="30">30×</option>
+      <option value="60">60×</option>
+      <option value="300">5 min/s</option>
+      <option value="-1">−1×</option>
+      <option value="-5">−5×</option>
+      <option value="-30">−30×</option>
+    </select>
+    <label>Fallback Alt
+      <input type="number" id="sat-alt" value="500" step="50" min="150" max="45000"> km
+    </label>
+
+    <div class="slider-box">
+      <span>Sat size</span>
+      <input type="range" id="sat-size-slider" min="0.5" max="3" value="1" step="0.1">
+    </div>
+
+    <div class="slider-box" title="Max magnitude shown when fully zoomed in">
+      <span>Mag max</span>
+      <input type="range" id="mag-slider" min="1" max="12" value="9" step="0.5">
+      <span id="mag-label">9.0</span>
+    </div>
+
+    <div class="toggle-box">
+      <label><input type="checkbox" id="tog-bodies" checked> Sun/Moon</label>
+      <label><input type="checkbox" id="tog-alt" checked> Altitude°</label>
+    </div>
+    <label style="font-size:.78rem;color:var(--muted);display:flex;align-items:center;gap:4px;cursor:pointer">
+      Load stars
+      <input type="file" id="star-file" accept=".csv,text/csv" style="font-size:.72rem;max-width:140px">
+    </label>
+    <span id="star-status" style="font-size:.75rem;color:var(--muted)"></span>
+  </div>
+</header>
+
+<div class="input-panel">
+  <div class="input-row">
+    <textarea id="iod-input" placeholder="Paste IOD lines here (one per line)">69786 26 151Z   9999 G 20260916210304804 17 25 0254379-070853 37 S</textarea>
+    <div class="station-box">
+      <label>Observer station</label>
+      <div class="field-row">
+        <label>Lat <input type="number" id="obs-lat" value="0" step="0.0001"></label>
+        <label>Lon <input type="number" id="obs-lon" value="0" step="0.0001"></label>
+        <label>Alt m <input type="number" id="obs-alt" value="0" step="1"></label>
+      </div>
+      <div class="status" id="status">Ready</div>
+    </div>
+  </div>
+  <div class="sat-list" id="sat-list"></div>
+</div>
+
+<div class="views">
+  <div class="view">
+    <div class="view-label">3D Globe</div>
+    <div id="globe-container"></div>
+  </div>
+  <div class="view">
+    <div class="view-label">Ground Map</div>
+    <div id="map"></div>
+  </div>
+  <div class="view">
+    <div class="view-label">Sky View (zoom = more stars)</div>
+    <div id="sky-container"></div>
+  </div>
+</div>
+
+<div class="time-bar">
+  <span id="time-display">—</span>
+  <input type="range" id="time-slider" min="0" max="1000" value="0">
+</div>
+
+<script>
+/* ============================================================
+   Math
+   ============================================================ */
+const RE=6371.0, MU=398600.4418, DEG=Math.PI/180, RAD=180/Math.PI;
+
+function dateToJD(d){return d.getTime()/86400000+2440587.5}
+function gmst(jd){
+  const T=(jd-2451545.0)/36525;
+  let st=280.46061837+360.98564736629*(jd-2451545.0)+0.000387933*T*T-T*T*T/38710000;
+  return ((st%360)+360)%360;
+}
+function geodeticToECEF(lat,lon,alt_m){
+  const a=6378.137,f=1/298.257223563,e2=f*(2-f);
+  const latR=lat*DEG,lonR=lon*DEG,sinLat=Math.sin(latR),cosLat=Math.cos(latR);
+  const N=a/Math.sqrt(1-e2*sinLat*sinLat),h=alt_m/1000;
+  return {x:(N+h)*cosLat*Math.cos(lonR),y:(N+h)*cosLat*Math.sin(lonR),z:(N*(1-e2)+h)*sinLat};
+}
+function raDecToECEFUnit(ra,dec,gmstDeg){
+  const raR=ra*DEG,decR=dec*DEG,cosDec=Math.cos(decR);
+  const xi=cosDec*Math.cos(raR),yi=cosDec*Math.sin(raR),zi=Math.sin(decR);
+  const g=gmstDeg*DEG,cosG=Math.cos(g),sinG=Math.sin(g);
+  return {x:xi*cosG+yi*sinG,y:-xi*sinG+yi*cosG,z:zi};
+}
+function raySphereIntersect(obs,dir,R){
+  const b=2*(obs.x*dir.x+obs.y*dir.y+obs.z*dir.z);
+  const c=obs.x*obs.x+obs.y*obs.y+obs.z*obs.z-R*R;
+  const disc=b*b-4*c; if(disc<0) return null;
+  const t1=(-b-Math.sqrt(disc))/2,t2=(-b+Math.sqrt(disc))/2;
+  const t=t1>0.05?t1:(t2>0.05?t2:null); if(t===null) return null;
+  return {x:obs.x+t*dir.x,y:obs.y+t*dir.y,z:obs.z+t*dir.z};
+}
+function ecefToLatLon(p){
+  const r=Math.sqrt(p.x*p.x+p.y*p.y+p.z*p.z);
+  return {lat:Math.asin(p.z/r)*RAD,lon:Math.atan2(p.y,p.x)*RAD,r};
+}
+function vNorm(v){return Math.sqrt(v.x*v.x+v.y*v.y+v.z*v.z)}
+function vDot(a,b){return a.x*b.x+a.y*b.y+a.z*b.z}
+function vCross(a,b){return {x:a.y*b.z-a.z*b.y,y:a.z*b.x-a.x*b.z,z:a.x*b.y-a.y*b.x}}
+function vScale(v,s){return {x:v.x*s,y:v.y*s,z:v.z*s}}
+function vAdd(a,b){return {x:a.x+b.x,y:a.y+b.y,z:a.z+b.z}}
+function vSub(a,b){return {x:a.x-b.x,y:a.y-b.y,z:a.z-b.z}}
+function vUnit(v){const n=vNorm(v);return n>1e-12?vScale(v,1/n):v}
+
+function raDecToAzEl(raDeg,decDeg,latDeg,lstDeg){
+  const ha=(lstDeg-raDeg+360)%360;
+  const haR=ha*DEG,decR=decDeg*DEG,latR=latDeg*DEG;
+  const sinEl=Math.sin(decR)*Math.sin(latR)+Math.cos(decR)*Math.cos(latR)*Math.cos(haR);
+  const el=Math.asin(Math.max(-1,Math.min(1,sinEl)))*RAD;
+  const cosEl=Math.cos(el*DEG);
+  let az=0;
+  if(Math.abs(cosEl)>1e-6){
+    const cosAz=(Math.sin(decR)-Math.sin(latR)*sinEl)/(Math.cos(latR)*cosEl);
+    const sinAz=-Math.sin(haR)*Math.cos(decR)/cosEl;
+    az=Math.atan2(sinAz,cosAz)*RAD; if(az<0) az+=360;
+  }
+  return {az,el};
+}
+function sunRaDec(jd){
+  const n=jd-2451545.0;
+  const L=(280.460+0.9856474*n)%360;
+  const g=((357.528+0.9856003*n)%360)*DEG;
+  const lambda=(L+1.915*Math.sin(g)+0.020*Math.sin(2*g))%360;
+  const eps=23.439*DEG;
+  const ra=Math.atan2(Math.cos(eps)*Math.sin(lambda*DEG),Math.cos(lambda*DEG))*RAD;
+  const dec=Math.asin(Math.sin(eps)*Math.sin(lambda*DEG))*RAD;
+  return {ra:(ra+360)%360,dec};
+}
+function moonRaDec(jd){
+  const n=jd-2451545.0;
+  const L=(218.316+13.176396*n)%360;
+  const g=((134.963+13.064993*n)%360)*DEG;
+  const F=((93.272+13.229350*n)%360)*DEG;
+  const lambda=L+6.289*Math.sin(g);
+  const beta=5.128*Math.sin(F);
+  const eps=23.439*DEG;
+  const ra=Math.atan2(Math.cos(eps)*Math.sin(lambda*DEG)-Math.sin(eps)*Math.tan(beta*DEG),Math.cos(lambda*DEG))*RAD;
+  const dec=Math.asin(Math.sin(eps)*Math.sin(lambda*DEG)*Math.cos(beta*DEG)+Math.cos(eps)*Math.sin(beta*DEG))*RAD;
+  return {ra:(ra+360)%360,dec};
+}
+function gibbs(r1,r2,r3){
+  const r1n=vNorm(r1),r2n=vNorm(r2),r3n=vNorm(r3);
+  const Z12=vCross(r1,r2),Z23=vCross(r2,r3),Z31=vCross(r3,r1);
+  const N=vAdd(vAdd(vScale(Z23,r1n),vScale(Z31,r2n)),vScale(Z12,r3n));
+  const D=vAdd(vAdd(Z12,Z23),Z31);
+  const S=vAdd(vAdd(vScale(r1,r2n-r3n),vScale(r2,r3n-r1n)),vScale(r3,r1n-r2n));
+  const Nn=vNorm(N),Dn=vNorm(D); if(Nn<1e-6||Dn<1e-6) return null;
+  const B=vCross(D,r2),Lg=Math.sqrt(MU/(Nn*Dn));
+  return vAdd(vScale(B,Lg/r2n),vScale(S,Lg));
+}
+function rv2coe(r,v){
+  const rn=vNorm(r),vn=vNorm(v),h=vCross(r,v),hn=vNorm(h);
+  const eVec=vScale(vSub(vScale(vCross(v,h),1/MU),vScale(r,1/rn)),1);
+  const e=vNorm(eVec),energy=vn*vn/2-MU/rn;
+  const a=Math.abs(energy)>1e-8?-MU/(2*energy):1e9;
+  const i=Math.acos(Math.max(-1,Math.min(1,h.z/hn)))*RAD;
+  return {a,e,i,period:2*Math.PI*Math.sqrt(a*a*a/MU)/60};
+}
+
+/* ============================================================
+   Star catalog – from hip_stars.csv (fetch, file picker, or embedded)
+   Format: hip,ra_deg,dec_deg,hp_mag
+   ============================================================ */
+let HIP_STARS = []; // {hip, ra, dec, mag}
+
+// Embedded fallback (same as the small sample CSV) so sky works offline
+const EMBEDDED_CSV = `hip,ra_deg,dec_deg,hp_mag
+1,0.0009118508717948024,1.0890133181622599,9.2043
+2,0.003797375190054703,-19.498837380461534,9.4017
+3,0.0050079433379189115,38.85928608169592,6.6081
+4,0.00838187979906013,-51.89354610684899,8.1498
+5,0.009965019482786108,-40.59122445180342,8.7077
+6,0.018140857929139245,3.9464881094093864,12.4488
+7,0.022548920185134137,20.036601976412424,9.6795
+8,0.027291750221668066,25.88647459977757,8.5522
+9,0.035341944753126964,36.585937694584324,8.7534
+10,0.036252964836118826,-50.86707363012125,8.6994
+11,0.03729667048530708,46.94000167956055,7.3777
+12,0.04091709911949154,-35.96022485630345,8.5598
+13,0.041679545516628023,-22.594680697031098,8.9707
+14,0.04827227292714494,-0.3604212381596202,7.4195
+15,0.05030894881276263,50.79117363598052,8.7669
+16,0.05140819699061087,-54.91412791052642,11.8279
+17,0.05109972797286833,-40.192328398692254,8.2405
+18,0.053139767120743434,-4.053737735682543,11.0625
+19,0.05331689702310813,38.304086328473,6.689
+20,0.06295066668621731,23.52928426718045,8.6208
+21,0.0662358118778471,8.007234299219437,7.6923
+22,0.07013560327378143,-49.352266743696255,8.8563`;
+
+function parseStarCSV(text){
+  const lines = text.trim().split(/\r?\n/);
+  const out = [];
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (!line || line.toLowerCase().startsWith('hip')) continue;
+    const parts = line.split(',');
+    if (parts.length < 4) continue;
+    const hip = parts[0].trim();
+    const ra  = parseFloat(parts[1]);
+    const dec = parseFloat(parts[2]);
+    const mag = parseFloat(parts[3]);
+    if (isNaN(ra) || isNaN(dec) || isNaN(mag)) continue;
+    out.push({hip, ra, dec, mag});
+  }
+  out.sort((a,b) => a.mag - b.mag);
+  return out;
+}
+
+function applyStarCatalog(stars, source){
+  HIP_STARS = stars;
+  const statusEl = document.getElementById('star-status');
+  statusEl.textContent = `Stars: ${HIP_STARS.length} loaded (${source})`;
+  statusEl.style.color = 'var(--green)';
+  if (typeof updateSimulation === 'function') {
+    try { updateSimulation(); } catch(e) {}
+  }
+}
+
+async function loadStarCatalog(){
+  // Always start with embedded catalog (works offline, no manual load)
+  const stars = parseStarCSV(EMBEDDED_CSV);
+  applyStarCatalog(stars, 'embedded');
+
+  // If served over http and a larger CSV is present, use that instead
+  const candidates = ['hip_stars.csv', './hip_stars.csv'];
+  for (const url of candidates) {
+    try {
+      const res = await fetch(url, {cache:'no-store'});
+      if (res.ok) {
+        const text = await res.text();
+        const external = parseStarCSV(text);
+        if (external.length > stars.length) {
+          applyStarCatalog(external, url);
+          return;
+        }
+      }
+    } catch(e) {}
+  }
+}
+
+function bindStarFileInput(){
+  const input = document.getElementById('star-file');
+  if (!input) return;
+  input.addEventListener('change', (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const stars = parseStarCSV(String(reader.result || ''));
+      if (stars.length === 0) {
+        document.getElementById('star-status').textContent = 'Stars: invalid CSV';
+        document.getElementById('star-status').style.color = 'var(--orange)';
+        return;
+      }
+      applyStarCatalog(stars, file.name);
+    };
+    reader.readAsText(file);
+  });
+}
+
+/* ============================================================
+   IOD Parser + estimators
+   ============================================================ */
+function parseIOD(line){
+  line=line.replace(/\r/g,''); if(line.length<45) return null;
+  const obj=line.substring(0,15).trim();
+  const ymd=line.substring(23,31),hms=line.substring(31,40);
+  if(!/^\d{8}$/.test(ymd)) return null;
+  const year=+ymd.slice(0,4),month=+ymd.slice(4,6),day=+ymd.slice(6,8);
+  let hour=0,min=0,sec=0;
+  if(hms.trim()){hour=+(hms.slice(0,2)||0);min=+(hms.slice(2,4)||0);
+    if(hms.length>=6){sec=+(hms.slice(4,6)||0);if(hms.length>6)sec+=parseFloat('0.'+hms.slice(6));}}
+  const utc=new Date(Date.UTC(year,month-1,day,hour,min,Math.floor(sec),Math.round((sec%1)*1000)));
+  const angFmt=+(line[44]||0);
+  const raaz=line.substring(47,54).trim(),sign=line[54]||'+',decel=line.substring(55,61).trim();
+  let ra=null,dec=null;
+  if(angFmt===1||angFmt===7){
+    const hh=+raaz.slice(0,2),mm=+raaz.slice(2,4),ss=+raaz.slice(4,6);
+    const s=raaz.length>6?+raaz[6]/10:0; ra=(hh+mm/60+(ss+s)/3600)*15;
+  }else if(angFmt===2||angFmt===3){
+    const hh=+raaz.slice(0,2),mm=+raaz.slice(2,4),mmm=raaz.length>4?+raaz.slice(4):0;
+    ra=(hh+(mm+mmm/1000)/60)*15;
+  }
+  if(angFmt===1){const dd=+decel.slice(0,2),mm=+decel.slice(2,4),ss=+decel.slice(4,6);
+    dec=(dd+mm/60+ss/3600)*(sign==='-'?-1:1);}
+  else if(angFmt===2){const dd=+decel.slice(0,2),mm=+decel.slice(2,4),mmf=decel.length>4?+decel.slice(4):0;
+    dec=(dd+(mm+mmf/100)/60)*(sign==='-'?-1:1);}
+  else if(angFmt===3||angFmt===7){const dd=+decel.slice(0,2),dddd=decel.length>2?+decel.slice(2):0;
+    dec=(dd+dddd/Math.pow(10,Math.max(decel.length-2,1)))*(sign==='-'?-1:1);}
+  if(ra===null) return null;
+  return {object:obj,utc,timeMs:utc.getTime(),ra,dec};
+}
+
+function estimateCircularAltitude(obsList,observer){
+  if(obsList.length<2) return null;
+  const obsECEF=geodeticToECEF(observer.lat,observer.lon,observer.alt);
+  const pairs=[]; for(let i=0;i<obsList.length-1;i++) pairs.push([obsList[i],obsList[i+1]]);
+  if(obsList.length>=3) pairs.push([obsList[0],obsList[obsList.length-1]]);
+  let bestH=null,bestScore=Infinity;
+  const cands=[]; for(let h=200;h<=1200;h+=25) cands.push(h);
+  for(let h=1300;h<=2500;h+=100) cands.push(h); cands.push(35786);
+  for(const h of cands){
+    const R=RE+h; let total=0,valid=0;
+    for(const [o1,o2] of pairs){
+      const dt=(o2.timeMs-o1.timeMs)/1000; if(dt<1||dt>3600) continue;
+      const d1=raDecToECEFUnit(o1.ra,o1.dec,gmst(dateToJD(o1.utc)));
+      const d2=raDecToECEFUnit(o2.ra,o2.dec,gmst(dateToJD(o2.utc)));
+      const p1=raySphereIntersect(obsECEF,d1,R),p2=raySphereIntersect(obsECEF,d2,R);
+      if(!p1||!p2) continue;
+      const cosTh=Math.max(-1,Math.min(1,vDot(p1,p2)/(vNorm(p1)*vNorm(p2))));
+      const theta=Math.acos(cosTh),n=Math.sqrt(MU/(R*R*R)),expected=n*dt;
+      total+=Math.abs(theta-expected)/Math.max(expected,0.001); valid++;
+    }
+    if(valid===0) continue;
+    const avg=total/valid; if(avg<bestScore){bestScore=avg;bestH=h;}
+  }
+  if(bestScore>0.55) return null;
+  return {altitude:bestH,score:bestScore};
+}
+function estimateElements(obsList,altKm,observer){
+  if(obsList.length<2) return null;
+  const positions=[];
+  for(const o of obsList){const p=computePosition(o,altKm,observer);if(p) positions.push(p);}
+  if(positions.length<2) return null;
+  const n=vUnit(vCross(positions[0],positions[1]));
+  const incl=Math.acos(Math.max(-1,Math.min(1,Math.abs(n.z))))*RAD;
+  let ecc=null,sma=altKm+RE,periodMin=null;
+  if(positions.length>=3){
+    const r1=positions[0],r2=positions[Math.floor(positions.length/2)],r3=positions[positions.length-1];
+    const v2=gibbs(r1,r2,r3);
+    if(v2){const coe=rv2coe(r2,v2);ecc=coe.e;sma=coe.a;periodMin=coe.period;}
+  }
+  return {inclination:incl,eccentricity:ecc,sma,altitude:sma-RE,periodMin};
+}
+function generateOrbitPoints(p1,p2,R,num=180){
+  const n=vUnit(vCross(p1,p2));
+  const xAxis=vUnit(p1);
+  const yAxis=vUnit(vCross(n,xAxis));
+  const pts=[];
+  for(let i=0;i<=num;i++){
+    const ang=(i/num)*2*Math.PI;
+    pts.push(vAdd(vScale(xAxis,R*Math.cos(ang)),vScale(yAxis,R*Math.sin(ang))));
+  }
+  return pts;
+}
+
+/* ============================================================
+   State
+   ============================================================ */
+let observations=[],satellites={};
+let simTime=0,minTime=0,maxTime=0,playing=false,lastFrame=performance.now();
+let observer={lat:0,lon:0,alt:0},fallbackAlt=500;
+let satSize=1.0;
+let showBodies=true, showAlt=true;
+let magMax = 9.0; // user slider: absolute max magnitude allowed
+
+const colors=['#38bdf8','#4ade80','#f472b6','#facc15','#a78bfa','#fb923c','#2dd4bf','#f87171'];
+
+function computePosition(obs,altKm,obsObj){
+  const o=obsObj||observer;
+  const dir=raDecToECEFUnit(obs.ra,obs.dec,gmst(dateToJD(obs.utc)));
+  const obsECEF=geodeticToECEF(o.lat,o.lon,o.alt);
+  const pos=raySphereIntersect(obsECEF,dir,RE+altKm);
+  if(!pos) return null;
+  const ll=ecefToLatLon(pos);
+  return {...pos,lat:ll.lat,lon:ll.lon};
+}
+
+function unwrapLongitudes(latlngs){
+  if(!latlngs || latlngs.length < 2) return latlngs;
+  const out = [[latlngs[0][0], latlngs[0][1]]];
+  for(let i=1;i<latlngs.length;i++){
+    let lat = latlngs[i][0];
+    let lon = latlngs[i][1];
+    const prevLon = out[out.length-1][1];
+    while(lon - prevLon > 180) lon -= 360;
+    while(lon - prevLon < -180) lon += 360;
+    out.push([lat, lon]);
+  }
+  return out;
+}
+
+/* ============================================================
+   3D Globe – equator horizontal, drag right = turn right
+   ============================================================ */
+let scene,camera,renderer,earth,earthGroup,satGroup,orbitGroup,obsMarker,equatorLine;
+let globeDistance=3.2;
+let globeLon = 0;
+let globeLat = 0;
+const globeContainer=document.getElementById('globe-container');
+
+function initGlobe(){
+  scene=new THREE.Scene();
+  camera=new THREE.PerspectiveCamera(45,1,0.1,1000);
+  camera.position.set(0,0,globeDistance);
+  renderer=new THREE.WebGLRenderer({antialias:true,alpha:true});
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
+  globeContainer.appendChild(renderer.domElement);
+
+  earthGroup = new THREE.Group();
+  scene.add(earthGroup);
+
+  const loader=new THREE.TextureLoader();
+  earth=new THREE.Mesh(new THREE.SphereGeometry(1,64,64),new THREE.MeshPhongMaterial({
+    map:loader.load('https://threejs.org/examples/textures/planets/earth_atmos_2048.jpg'),
+    specularMap:loader.load('https://threejs.org/examples/textures/planets/earth_specular_2048.jpg'),
+    shininess:12}));
+  earthGroup.add(earth);
+
+  // RED equator (horizontal when globeLat=0)
+  const eqPts=[];
+  for(let i=0;i<=128;i++){
+    const a=i/128*Math.PI*2;
+    eqPts.push(new THREE.Vector3(Math.cos(a)*1.002, 0, Math.sin(a)*1.002));
+  }
+  equatorLine=new THREE.Line(new THREE.BufferGeometry().setFromPoints(eqPts),
+    new THREE.LineBasicMaterial({color:0xef4444, transparent:true, opacity:0.9}));
+  earthGroup.add(equatorLine);
+
+  earthGroup.add(new THREE.Mesh(new THREE.SphereGeometry(1.018,32,32),
+    new THREE.MeshBasicMaterial({color:0x3388ff,transparent:true,opacity:0.13,side:THREE.BackSide})));
+
+  scene.add(new THREE.AmbientLight(0x334455,0.95));
+  const sun=new THREE.DirectionalLight(0xffffff,1.15); sun.position.set(5,3,5); scene.add(sun);
+
+  const starPos=[]; for(let i=0;i<400;i++){
+    const r=40+Math.random()*30,th=Math.random()*Math.PI*2,ph=Math.acos(2*Math.random()-1);
+    starPos.push(r*Math.sin(ph)*Math.cos(th),r*Math.sin(ph)*Math.sin(th),r*Math.cos(ph));
+  }
+  const sg=new THREE.BufferGeometry(); sg.setAttribute('position',new THREE.Float32BufferAttribute(starPos,3));
+  scene.add(new THREE.Points(sg,new THREE.PointsMaterial({color:0xffffff,size:0.08})));
+
+  satGroup=new THREE.Group(); orbitGroup=new THREE.Group();
+  earthGroup.add(satGroup); earthGroup.add(orbitGroup);
+  obsMarker=new THREE.Mesh(new THREE.SphereGeometry(0.022,12,12),new THREE.MeshBasicMaterial({color:0xffaa00}));
+  earthGroup.add(obsMarker);
+
+  applyGlobeRotation();
+
+  let dragging=false, px, py;
+  renderer.domElement.addEventListener('mousedown',e=>{dragging=true; px=e.clientX; py=e.clientY});
+  window.addEventListener('mouseup',()=>dragging=false);
+  window.addEventListener('mousemove',e=>{
+    if(!dragging) return;
+    const dx = e.clientX - px;
+    const dy = e.clientY - py;
+    // Drag right → Earth turns right
+    globeLon -= dx * 0.005;
+    globeLat += dy * 0.005;
+    globeLat = Math.max(-Math.PI/2+0.05, Math.min(Math.PI/2-0.05, globeLat));
+    applyGlobeRotation();
+    px = e.clientX; py = e.clientY;
+  });
+  renderer.domElement.addEventListener('wheel',e=>{
+    e.preventDefault();
+    globeDistance = Math.max(1.5, Math.min(10, globeDistance + e.deltaY*0.002));
+    camera.position.set(0,0,globeDistance);
+  },{passive:false});
+
+  new ResizeObserver(resizeGlobe).observe(globeContainer);
+  resizeGlobe();
+  (function loop(){requestAnimationFrame(loop);renderer.render(scene,camera)})();
+}
+
+function applyGlobeRotation(){
+  earthGroup.rotation.set(0,0,0);
+  earthGroup.rotation.y = globeLon;
+  earthGroup.rotation.x = globeLat;
+}
+
+function resizeGlobe(){
+  const w=globeContainer.clientWidth,h=globeContainer.clientHeight;
+  if(w<10||h<10) return;
+  camera.aspect=w/h; camera.updateProjectionMatrix(); renderer.setSize(w,h,false);
+}
+function clearOrbits(){while(orbitGroup.children.length)orbitGroup.remove(orbitGroup.children[0])}
+function drawOrbit(points,color){
+  const scale=1/RE;
+  const pts=points.map(p=>new THREE.Vector3(p.x*scale, p.z*scale, -p.y*scale));
+  orbitGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),
+    new THREE.LineBasicMaterial({color,transparent:true,opacity:0.55})));
+}
+function updateGlobePositions(positions){
+  while(satGroup.children.length)satGroup.remove(satGroup.children[0]);
+  const scale=1/RE;
+  const r=0.028*satSize;
+  positions.forEach(p=>{
+    if(!p) return;
+    const m=new THREE.Mesh(new THREE.SphereGeometry(r,12,12),new THREE.MeshBasicMaterial({color:p.color}));
+    m.position.set(p.x*scale, p.z*scale, -p.y*scale);
+    satGroup.add(m);
+  });
+  const o=geodeticToECEF(observer.lat,observer.lon,observer.alt);
+  obsMarker.position.set(o.x*scale, o.z*scale, -o.y*scale);
+  obsMarker.scale.setScalar(satSize);
+}
+
+/** Auto-focus: put average of observer + satellite positions in front of camera, equator stays horizontal */
+function focusGlobeOnData(){
+  const pts = [];
+
+  // Satellite positions from IOD
+  Object.values(satellites).forEach(sat => {
+    const alt = sat.estimatedAlt != null ? sat.estimatedAlt : fallbackAlt;
+    sat.obs.forEach(o => {
+      const p = computePosition(o, alt);
+      if (p) pts.push(p);
+    });
+  });
+
+  // Always include the observation station
+  pts.push(geodeticToECEF(observer.lat, observer.lon, observer.alt));
+
+  if (pts.length === 0) return;
+
+  let cx=0, cy=0, cz=0;
+  pts.forEach(p => { cx += p.x; cy += p.y; cz += p.z; });
+  cx /= pts.length; cy /= pts.length; cz /= pts.length;
+
+  // Geodetic of the average point
+  const r = Math.sqrt(cx*cx + cy*cy + cz*cz) || 1;
+  const lat = Math.asin(Math.max(-1, Math.min(1, cz / r))); // radians
+  const lon = Math.atan2(cy, cx);                           // radians
+
+  // Orient Earth so this lat/lon faces the camera, equator horizontal
+  globeLon = -lon;
+  globeLat =  lat;
+  applyGlobeRotation();
+
+  // Zoom based on angular spread
+  let maxAng = 0.15;
+  const centerDir = vUnit({x:cx, y:cy, z:cz});
+  pts.forEach(p => {
+    const d = Math.acos(Math.max(-1, Math.min(1, vDot(vUnit(p), centerDir))));
+    if (d > maxAng) maxAng = d;
+  });
+  globeDistance = Math.max(1.9, Math.min(5.5, 1.85 + maxAng * 2.8));
+  camera.position.set(0, 0, globeDistance);
+}
+
+/* ============================================================
+   Ground Map
+   ============================================================ */
+let map,markersLayer,iodLayer,orbitLayer;
+function initMap(){
+  map=L.map('map',{worldCopyJump:true}).setView([20,0],2);
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+    {attribution:'© OSM © CARTO',maxZoom:18}).addTo(map);
+  markersLayer=L.layerGroup().addTo(map);
+  iodLayer=L.layerGroup().addTo(map);
+  orbitLayer=L.layerGroup().addTo(map);
+}
+function fitMapToData(iodTracks){
+  const pts=[[observer.lat,observer.lon]];
+  (iodTracks||[]).forEach(tr=>{(tr.latlngs||[]).forEach(ll=>pts.push(ll))});
+  if(pts.length<2){map.setView([observer.lat,observer.lon],6);return}
+  map.fitBounds(L.latLngBounds(pts).pad(0.35),{maxZoom:8,animate:true});
+}
+function updateMap(positions,orbitTracks,iodTracks){
+  markersLayer.clearLayers(); iodLayer.clearLayers(); orbitLayer.clearLayers();
+  L.circleMarker([observer.lat,observer.lon],{
+    radius:7*satSize,color:'#fbbf24',fillColor:'#fbbf24',fillOpacity:0.95
+  }).addTo(markersLayer).bindPopup('Observer');
+
+  (orbitTracks||[]).forEach(tr=>{
+    if(tr.length < 3) return;
+    const raw = tr.map(p => [p.lat, p.lon]);
+    const unwrapped = unwrapLongitudes(raw);
+    L.polyline(unwrapped, {
+      color: tr.color, weight: 2.5, opacity: 0.55, dashArray: '6 5'
+    }).addTo(orbitLayer);
+  });
+
+  (iodTracks||[]).forEach(tr=>{
+    if(tr.latlngs && tr.latlngs.length >= 2){
+      const unwrapped = unwrapLongitudes(tr.latlngs);
+      L.polyline(unwrapped, {color:tr.color, weight:3.5, opacity:0.95}).addTo(iodLayer);
+    }
+    (tr.latlngs||[]).forEach(ll=>{
+      L.circleMarker(ll,{radius:4.5*satSize,color:tr.color,fillColor:tr.color,fillOpacity:1}).addTo(iodLayer);
+    });
+  });
+
+  positions.forEach(p=>{
+    if(!p||p.lat==null) return;
+    L.circleMarker([p.lat,p.lon],{
+      radius:8*satSize,color:p.color,fillColor:'#fff',fillOpacity:0.9,weight:2
+    }).addTo(markersLayer);
+  });
+}
+
+/* ============================================================
+   Sky View – zoom-driven magnitude LOD from hip_stars.csv
+   ============================================================ */
+let skyScene,skyCamera,skyRenderer,skySatGroup,skyTrailGroup,skyLabelGroup;
+let skyStarGroup, skyAltGroup;
+let skyAz=0, skyEl=45;
+const skyContainer=document.getElementById('sky-container');
+
+function createTextSprite(text,col,scale=1){
+  const c=document.createElement('canvas');
+  c.width=512; c.height=128;
+  const ctx=c.getContext('2d');
+  ctx.fillStyle=col;
+  ctx.font='bold 80px Arial';
+  ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillText(text,256,64);
+  const tex=new THREE.CanvasTexture(c);
+  const mat=new THREE.SpriteMaterial({map:tex,transparent:true,depthTest:false});
+  const sp=new THREE.Sprite(mat);
+  sp.scale.set(18*scale,4.5*scale,1);
+  return sp;
+}
+function azElToSky(az,el,r=85){
+  const azR=az*DEG, elR=el*DEG;
+  return new THREE.Vector3(
+    Math.sin(azR)*Math.cos(elR)*r,
+    Math.sin(elR)*r,
+    -Math.cos(azR)*Math.cos(elR)*r
+  );
+}
+
+/** Map current FOV → magnitude limit (zoom in = fainter stars) */
+function magLimitFromFOV(fov){
+  // FOV 100 (zoomed out) → only bright (mag ~4)
+  // FOV 30  (zoomed in)  → up to magMax
+  const t = Math.max(0, Math.min(1, (100 - fov) / 70)); // 0 at FOV100, 1 at FOV30
+  const magMinVisible = 3.5;
+  return magMinVisible + t * (magMax - magMinVisible);
+}
+
+function buildAltitudeCircles(){
+  if(skyAltGroup) skyScene.remove(skyAltGroup);
+  skyAltGroup = new THREE.Group();
+  for(let alt=0; alt<=75; alt+=15){
+    const r = Math.cos(alt*DEG)*100;
+    const y = Math.sin(alt*DEG)*100;
+    const pts=[];
+    for(let i=0;i<=72;i++){
+      const a = i/72*Math.PI*2;
+      pts.push(new THREE.Vector3(Math.cos(a)*r, y, Math.sin(a)*r));
+    }
+    skyAltGroup.add(new THREE.Line(
+      new THREE.BufferGeometry().setFromPoints(pts),
+      new THREE.LineBasicMaterial({color:0x475569, transparent:true, opacity:0.4})
+    ));
+    if(alt > 0){
+      const sp = createTextSprite(alt+'°', '#94a3b8', 0.35);
+      sp.position.set(0, y+1.5, r);
+      skyAltGroup.add(sp);
+    }
+  }
+  const zenith = new THREE.Mesh(new THREE.SphereGeometry(1.4,12,12),
+    new THREE.MeshBasicMaterial({color:0xef4444}));
+  zenith.position.set(0,98,0);
+  skyAltGroup.add(zenith);
+  const zenLabel = createTextSprite('Zenith', '#ef4444', 0.4);
+  zenLabel.position.set(0,103,0);
+  skyAltGroup.add(zenLabel);
+  skyAltGroup.visible = showAlt;
+  skyScene.add(skyAltGroup);
+}
+
+function initSky(){
+  skyScene = new THREE.Scene();
+  skyScene.background = new THREE.Color(0x030712);
+  skyCamera = new THREE.PerspectiveCamera(65,1,0.1,500);
+  skyRenderer = new THREE.WebGLRenderer({antialias:true});
+  skyRenderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
+  skyContainer.appendChild(skyRenderer.domElement);
+
+  skyStarGroup = new THREE.Group();
+  skySatGroup = new THREE.Group();
+  skyTrailGroup = new THREE.Group();
+  skyLabelGroup = new THREE.Group();
+  skyScene.add(skyStarGroup);
+  skyScene.add(skySatGroup);
+  skyScene.add(skyTrailGroup);
+  skyScene.add(skyLabelGroup);
+
+  buildAltitudeCircles();
+
+  const ground = new THREE.Mesh(new THREE.CircleGeometry(130,64),
+    new THREE.MeshBasicMaterial({color:0x000000, side:THREE.DoubleSide}));
+  ground.rotation.x = -Math.PI/2; ground.position.y = -0.8;
+  skyScene.add(ground);
+
+  const hPts=[];
+  for(let i=0;i<=72;i++){
+    const a=i/72*Math.PI*2;
+    hPts.push(new THREE.Vector3(Math.cos(a)*100,0.15,Math.sin(a)*100));
+  }
+  skyScene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(hPts),
+    new THREE.LineBasicMaterial({color:0x64748b})));
+
+  [{az:0,t:'N',c:'#f87171'},{az:90,t:'E',c:'#4ade80'},
+   {az:180,t:'S',c:'#38bdf8'},{az:270,t:'W',c:'#facc15'}].forEach(d=>{
+    const rad=d.az*DEG;
+    const sp=createTextSprite(d.t,d.c,1.3);
+    sp.position.set(Math.sin(rad)*90,8,-Math.cos(rad)*90);
+    skyScene.add(sp);
+  });
+
+  let dragging=false,px,py;
+  skyRenderer.domElement.addEventListener('mousedown',e=>{dragging=true;px=e.clientX;py=e.clientY});
+  window.addEventListener('mouseup',()=>dragging=false);
+  window.addEventListener('mousemove',e=>{
+    if(!dragging) return;
+    skyAz -= (e.clientX-px)*0.3;
+    skyEl += (e.clientY-py)*0.3;
+    skyEl = Math.max(5, Math.min(89, skyEl));
+    px=e.clientX; py=e.clientY;
+    updateSkyCamera();
+  });
+  skyRenderer.domElement.addEventListener('wheel',e=>{
+    // Zoom changes FOV → more/fewer stars via magnitude LOD
+    skyCamera.fov = Math.max(25, Math.min(100, skyCamera.fov + e.deltaY*0.05));
+    skyCamera.updateProjectionMatrix();
+    updateSimulation(); // refresh stars for new FOV
+  },{passive:true});
+
+  new ResizeObserver(resizeSky).observe(skyContainer);
+  resizeSky();
+  updateSkyCamera();
+  (function loop(){requestAnimationFrame(loop);skyRenderer.render(skyScene,skyCamera)})();
+}
+function resizeSky(){
+  const w=skyContainer.clientWidth,h=skyContainer.clientHeight;
+  if(w<10||h<10) return;
+  skyCamera.aspect=w/h; skyCamera.updateProjectionMatrix();
+  skyRenderer.setSize(w,h,false);
+}
+function updateSkyCamera(){
+  const azR=skyAz*DEG, elR=skyEl*DEG;
+  skyCamera.position.set(0,0,0);
+  skyCamera.lookAt(Math.sin(azR)*Math.cos(elR), Math.sin(elR), -Math.cos(azR)*Math.cos(elR));
+  skyCamera.up.set(0,1,0);
+}
+
+function focusSkyOnData(){
+  if(Object.keys(satellites).length === 0) return;
+  const jd = dateToJD(new Date(simTime || minTime));
+  const lst = (gmst(jd) + observer.lon + 360) % 360;
+  let sumAz = 0, sumEl = 0, count = 0;
+  Object.values(satellites).forEach(sat=>{
+    sat.obs.forEach(o=>{
+      const {az, el} = raDecToAzEl(o.ra, o.dec, observer.lat, lst);
+      if(el > -5){ sumAz += az; sumEl += el; count++; }
+    });
+  });
+  if(count > 0){
+    skyAz = sumAz / count;
+    skyEl = Math.max(15, Math.min(75, sumEl / count));
+    updateSkyCamera();
+  }
+}
+
+function updateSkyView(positions, satellites){
+  while(skyStarGroup.children.length) skyStarGroup.remove(skyStarGroup.children[0]);
+  while(skySatGroup.children.length) skySatGroup.remove(skySatGroup.children[0]);
+  while(skyTrailGroup.children.length) skyTrailGroup.remove(skyTrailGroup.children[0]);
+  while(skyLabelGroup.children.length) skyLabelGroup.remove(skyLabelGroup.children[0]);
+
+  const jd = dateToJD(new Date(simTime));
+  const lst = (gmst(jd) + observer.lon + 360) % 360;
+  const lat = observer.lat;
+
+  // Magnitude limit from zoom (FOV) + user max
+  const limit = Math.min(magMax, magLimitFromFOV(skyCamera.fov));
+
+  // Draw stars from catalog that are brighter than limit and above horizon
+  let drawn = 0;
+  for (const s of HIP_STARS) {
+    if (s.mag >= limit) break; // catalog is sorted by mag
+    const {az, el} = raDecToAzEl(s.ra, s.dec, lat, lst);
+    if (el < -2) continue;
+
+    const pos = azElToSky(az, el, 92);
+    // Smaller stars: bright ones still slightly larger, faint ones tiny
+    const size = Math.max(0.12, 0.85 - s.mag * 0.07);
+    const b = Math.max(0.3, 1.15 - (s.mag + 1) * 0.1);
+    const mat = new THREE.MeshBasicMaterial({color: new THREE.Color(b, b, b*0.95)});
+    const mesh = new THREE.Mesh(new THREE.SphereGeometry(size, 6, 6), mat);
+    mesh.position.copy(pos);
+    skyStarGroup.add(mesh);
+    drawn++;
+  }
+
+  // Update status with how many are visible at current zoom
+  const statusEl = document.getElementById('star-status');
+  if (HIP_STARS.length) {
+    statusEl.textContent = `Stars: ${drawn} visible (mag < ${limit.toFixed(1)}, zoom FOV ${skyCamera.fov.toFixed(0)}°)`;
+  }
+
+  // Satellite trails
+  Object.values(satellites).forEach(sat=>{
+    const pts=[];
+    sat.obs.forEach(o=>{
+      const {az,el}=raDecToAzEl(o.ra,o.dec,lat,lst);
+      if(el>-5) pts.push(azElToSky(az,el));
+    });
+    if(pts.length>=2){
+      skyTrailGroup.add(new THREE.Line(
+        new THREE.BufferGeometry().setFromPoints(pts),
+        new THREE.LineBasicMaterial({color:sat.color, transparent:true, opacity:0.9})
+      ));
+    }
+  });
+
+  const rBall = 1.5 * satSize;
+  positions.forEach(p=>{
+    if(!p) return;
+    const sat = satellites[p.id];
+    if(!sat || !sat.obs.length) return;
+    let closest = sat.obs[0], dt = Math.abs(sat.obs[0].timeMs - simTime);
+    sat.obs.forEach(o=>{
+      const d = Math.abs(o.timeMs - simTime);
+      if(d < dt){dt = d; closest = o;}
+    });
+    const {az,el} = raDecToAzEl(closest.ra, closest.dec, lat, lst);
+    if(el < -2) return;
+    const pos = azElToSky(az, el, 82);
+    const ball = new THREE.Mesh(new THREE.SphereGeometry(rBall,12,12),
+      new THREE.MeshBasicMaterial({color:p.color}));
+    ball.position.copy(pos); skySatGroup.add(ball);
+    const glow = new THREE.Mesh(new THREE.SphereGeometry(rBall*1.9,8,8),
+      new THREE.MeshBasicMaterial({color:p.color, transparent:true, opacity:0.22}));
+    glow.position.copy(pos); skySatGroup.add(glow);
+  });
+
+  if(showBodies){
+    const sun = sunRaDec(jd);
+    const moon = moonRaDec(jd);
+    [{name:'Sun', ra:sun.ra, dec:sun.dec, col:'#fde047'},
+     {name:'Moon', ra:moon.ra, dec:moon.dec, col:'#e2e8f0'}].forEach(body=>{
+      const {az,el} = raDecToAzEl(body.ra, body.dec, lat, lst);
+      if(el < 0) return;
+      const pos = azElToSky(az, el, 80);
+      const sp = createTextSprite(body.name, body.col, 0.7);
+      sp.position.copy(pos); sp.position.y += 5;
+      skyLabelGroup.add(sp);
+      const m = new THREE.Mesh(new THREE.SphereGeometry(1.2,10,10),
+        new THREE.MeshBasicMaterial({color:body.col}));
+      m.position.copy(pos); skyLabelGroup.add(m);
+    });
+  }
+}
+
+/* ============================================================
+   Core
+   ============================================================ */
+function getSatelliteState(sat,t){
+  const obs=sat.obs; if(!obs.length) return null;
+  const usedAlt = sat.estimatedAlt != null ? sat.estimatedAlt : fallbackAlt;
+  if(t <= obs[0].timeMs){
+    const p = computePosition(obs[0], usedAlt);
+    return p ? {...p, id:obs[0].object, color:sat.color, usedAlt, incl:sat.inclination} : null;
+  }
+  if(t >= obs[obs.length-1].timeMs){
+    const last = obs[obs.length-1];
+    const p = computePosition(last, usedAlt);
+    return p ? {...p, id:last.object, color:sat.color, usedAlt, incl:sat.inclination} : null;
+  }
+  let i=0; while(i < obs.length-1 && obs[i+1].timeMs < t) i++;
+  const a=obs[i], b=obs[i+1], frac=(t-a.timeMs)/(b.timeMs-a.timeMs);
+  const pa=computePosition(a,usedAlt), pb=computePosition(b,usedAlt);
+  if(!pa||!pb) return pa||pb;
+  const pos={x:pa.x+(pb.x-pa.x)*frac, y:pa.y+(pb.y-pa.y)*frac, z:pa.z+(pb.z-pa.z)*frac};
+  const ll=ecefToLatLon(pos);
+  return {...pos, lat:ll.lat, lon:ll.lon, id:a.object, color:sat.color, usedAlt, incl:sat.inclination};
+}
+
+function loadObservations(){
+  const text = document.getElementById('iod-input').value;
+  const lines = text.split('\n').map(l=>l.trim()).filter(l=>l.length>20);
+  observations = []; satellites = {};
+  lines.forEach(line=>{
+    const o = parseIOD(line); if(!o) return;
+    observations.push(o);
+    if(!satellites[o.object]){
+      satellites[o.object] = {
+        obs:[], color:colors[Object.keys(satellites).length % colors.length],
+        estimatedAlt:null, eccentricity:null, inclination:null, periodMin:null,
+        orbitPoints:null, groundTrack:null, iodTrack:null
+      };
+    }
+    satellites[o.object].obs.push(o);
+  });
+  Object.values(satellites).forEach(s => s.obs.sort((a,b)=>a.timeMs-b.timeMs));
+
+  observer.lat = +document.getElementById('obs-lat').value;
+  observer.lon = +document.getElementById('obs-lon').value;
+  observer.alt = +document.getElementById('obs-alt').value;
+  fallbackAlt = +document.getElementById('sat-alt').value;
+
+  clearOrbits();
+  Object.entries(satellites).forEach(([id,sat])=>{
+    if(sat.obs.length >= 2){
+      const res = estimateCircularAltitude(sat.obs, observer);
+      if(res) sat.estimatedAlt = res.altitude;
+    }
+    const alt = sat.estimatedAlt != null ? sat.estimatedAlt : fallbackAlt;
+    const elems = estimateElements(sat.obs, alt, observer);
+    if(elems){
+      sat.inclination = elems.inclination;
+      sat.eccentricity = elems.eccentricity;
+      sat.periodMin = elems.periodMin;
+      if(elems.altitude && sat.estimatedAlt == null) sat.estimatedAlt = elems.altitude;
+    }
+
+    const latlngs = [];
+    sat.obs.forEach(o=>{
+      const p = computePosition(o, sat.estimatedAlt != null ? sat.estimatedAlt : fallbackAlt);
+      if(p) latlngs.push([p.lat, p.lon]);
+    });
+    sat.iodTrack = {latlngs, color:sat.color};
+
+    if(sat.estimatedAlt != null && sat.obs.length >= 2){
+      const R = RE + sat.estimatedAlt;
+      const pA = computePosition(sat.obs[0], sat.estimatedAlt);
+      const pB = computePosition(sat.obs[Math.min(1, sat.obs.length-1)], sat.estimatedAlt);
+      if(pA && pB){
+        sat.orbitPoints = generateOrbitPoints(pA, pB, R, 180);
+        sat.groundTrack = sat.orbitPoints.map(p=>{
+          const ll = ecefToLatLon(p);
+          return {lat:ll.lat, lon:ll.lon};
+        });
+        sat.groundTrack.color = sat.color;
+        drawOrbit(sat.orbitPoints, sat.color);
+      }
+    }
+  });
+
+  if(observations.length === 0){
+    document.getElementById('status').textContent = 'No valid IOD lines';
+    return;
+  }
+  minTime = Math.min(...observations.map(o=>o.timeMs));
+  maxTime = Math.max(...observations.map(o=>o.timeMs));
+  if(maxTime - minTime < 5*60*1000) maxTime = minTime + 5*60*1000;
+  simTime = minTime;
+  document.getElementById('time-slider').value = 0;
+
+  const list = document.getElementById('sat-list');
+  list.innerHTML = '';
+  Object.entries(satellites).forEach(([id,s])=>{
+    const div = document.createElement('div');
+    div.className = 'sat-item';
+    let html = `<div class="sat-header"><span class="dot" style="background:${s.color}"></span><strong>${id}</strong> (${s.obs.length})</div>`;
+    html += `<div class="param">Alt ≈ <span>${(s.estimatedAlt||fallbackAlt).toFixed(0)} km</span></div>`;
+    if(s.inclination != null) html += `<div class="param">Incl ≈ <span class="i">${s.inclination.toFixed(1)}°</span></div>`;
+    if(s.eccentricity != null) html += `<div class="param">Ecc ≈ <span class="e">${s.eccentricity.toFixed(4)}</span></div>`;
+    if(s.periodMin != null) html += `<div class="param">Period ≈ <span>${s.periodMin.toFixed(1)} min</span></div>`;
+    div.innerHTML = html;
+    list.appendChild(div);
+  });
+  document.getElementById('status').textContent =
+    `Loaded ${observations.length} obs • ${Object.keys(satellites).length} object(s)`;
+
+  const iodTracks = Object.values(satellites).filter(s=>s.iodTrack).map(s=>s.iodTrack);
+  setTimeout(()=>{
+    fitMapToData(iodTracks);
+    focusGlobeOnData();
+    focusSkyOnData();
+  }, 400);
+
+  updateSimulation();
+}
+
+function updateSimulation(){
+  const positions = Object.entries(satellites).map(([id,sat])=>{
+    const st = getSatelliteState(sat, simTime);
+    if(st) st.id = id;
+    return st;
+  }).filter(Boolean);
+
+  const orbitTracks = Object.values(satellites).filter(s=>s.groundTrack).map(s=>s.groundTrack);
+  const iodTracks = Object.values(satellites).filter(s=>s.iodTrack).map(s=>s.iodTrack);
+
+  updateGlobePositions(positions);
+  updateMap(positions, orbitTracks, iodTracks);
+  updateSkyView(positions, satellites);
+
+  const d = new Date(simTime);
+  document.getElementById('time-display').textContent =
+    d.toISOString().replace('T',' ').slice(0,23) + ' UTC';
+  const frac = (simTime - minTime) / (maxTime - minTime || 1);
+  document.getElementById('time-slider').value = Math.round(Math.max(0, Math.min(1000, frac*1000)));
+}
+
+function tick(now){
+  const dt = now - lastFrame;
+  lastFrame = now;
+  if(playing){
+    const speed = parseFloat(document.getElementById('speed').value) || 1;
+    simTime += dt * speed;
+    if(simTime > maxTime){
+      simTime = maxTime; playing = false;
+      document.getElementById('btn-play').textContent = 'Play';
+      document.getElementById('btn-play').classList.remove('active');
+    }
+    if(simTime < minTime){
+      simTime = minTime; playing = false;
+      document.getElementById('btn-play').textContent = 'Play';
+      document.getElementById('btn-play').classList.remove('active');
+    }
+    updateSimulation();
+  }
+  requestAnimationFrame(tick);
+}
+
+/* UI */
+document.getElementById('btn-parse').addEventListener('click', loadObservations);
+document.getElementById('btn-play').addEventListener('click', ()=>{
+  playing = !playing;
+  const btn = document.getElementById('btn-play');
+  btn.textContent = playing ? 'Pause' : 'Play';
+  btn.classList.toggle('active', playing);
+  lastFrame = performance.now();
+});
+document.getElementById('time-slider').addEventListener('input', e=>{
+  simTime = minTime + (+e.target.value/1000)*(maxTime-minTime);
+  updateSimulation();
+});
+['obs-lat','obs-lon','obs-alt','sat-alt'].forEach(id=>{
+  document.getElementById(id).addEventListener('change', loadObservations);
+});
+
+bindStarFileInput();
+
+document.getElementById('mag-slider').addEventListener('input', e=>{
+  magMax = +e.target.value;
+  document.getElementById('mag-label').textContent = magMax.toFixed(1);
+  updateSimulation();
+});
+document.getElementById('sat-size-slider').addEventListener('input', e=>{
+  satSize = +e.target.value;
+  updateSimulation();
+});
+document.getElementById('tog-bodies').addEventListener('change', e=>{
+  showBodies = e.target.checked;
+  updateSimulation();
+});
+document.getElementById('tog-alt').addEventListener('change', e=>{
+  showAlt = e.target.checked;
+  if(skyAltGroup) skyAltGroup.visible = showAlt;
+});
+
+initGlobe();
+initMap();
+initSky();
+requestAnimationFrame(tick);
+
+// Load star catalog then parse default IOD
+loadStarCatalog().then(() => loadObservations());
+</script>
+</body>
+</html>
