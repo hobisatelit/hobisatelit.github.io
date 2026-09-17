@@ -97,13 +97,7 @@
 
     <div class="slider-box">
       <span>Sat size</span>
-      <input type="range" id="sat-size-slider" min="0.5" max="3" value="1" step="0.1">
-    </div>
-
-    <div class="slider-box" title="Max magnitude shown when fully zoomed in">
-      <span>Mag max</span>
-      <input type="range" id="mag-slider" min="1" max="12" value="9" step="0.5">
-      <span id="mag-label">9.0</span>
+      <input type="range" id="sat-size-slider" min="0.5" max="3" value="0.5" step="0.1">
     </div>
 
     <div class="toggle-box">
@@ -448,9 +442,9 @@ function generateOrbitPoints(p1,p2,R,num=180){
 let observations=[],satellites={};
 let simTime=0,minTime=0,maxTime=0,playing=false,lastFrame=performance.now();
 let observer={lat:0,lon:0,alt:0},fallbackAlt=500;
-let satSize=1.0;
+let satSize=0.5; // smallest by default
 let showBodies=true, showAlt=true, showConst=true;
-let magMax = 9.0; // synced with sky zoom (FOV)
+const MAG_MAX = 7.0; // fixed: show stars brighter than mag 7
 
 /* Classic constellation stick figures: [ra_deg, dec_deg] vertices (independent of HIP catalog) */
 const CONSTELLATIONS = {
@@ -736,23 +730,7 @@ function azElToSky(az,el,r=85){
   );
 }
 
-/** FOV ↔ magnitude: zoom in (small FOV) → higher mag limit (fainter stars) */
-function magFromFOV(fov){
-  // FOV 100 → mag 4, FOV 25 → mag 12
-  const t = Math.max(0, Math.min(1, (100 - fov) / 75));
-  return 4 + t * 8;
-}
-function fovFromMag(mag){
-  const t = Math.max(0, Math.min(1, (mag - 4) / 8));
-  return 100 - t * 75;
-}
-function syncMagSliderFromFOV(){
-  magMax = magFromFOV(skyCamera.fov);
-  const sl = document.getElementById('mag-slider');
-  const lab = document.getElementById('mag-label');
-  if (sl) sl.value = magMax;
-  if (lab) lab.textContent = magMax.toFixed(1);
-}
+/* Magnitude limit is fixed at MAG_MAX (7). Zoom only changes camera FOV. */
 
 function buildAltitudeCircles(){
   if(skyAltGroup) skyScene.remove(skyAltGroup);
@@ -842,7 +820,6 @@ function initSky(){
   skyRenderer.domElement.addEventListener('wheel',e=>{
     skyCamera.fov = Math.max(25, Math.min(100, skyCamera.fov + e.deltaY*0.05));
     skyCamera.updateProjectionMatrix();
-    syncMagSliderFromFOV(); // keep Mag max slider in sync with zoom
     updateSimulation();
   },{passive:true});
 
@@ -893,8 +870,8 @@ function updateSkyView(positions, satellites){
   const lst = (gmst(jd) + observer.lon + 360) % 360;
   const lat = observer.lat;
 
-  // Magnitude limit synced with zoom
-  const limit = magMax;
+  // Fixed magnitude limit (mag < 7)
+  const limit = MAG_MAX;
 
   // Draw stars from catalog that are brighter than limit and above horizon
   let drawn = 0;
@@ -1185,16 +1162,6 @@ document.getElementById('time-slider').addEventListener('input', e=>{
 
 bindStarFileInput();
 
-document.getElementById('mag-slider').addEventListener('input', e=>{
-  magMax = +e.target.value;
-  document.getElementById('mag-label').textContent = magMax.toFixed(1);
-  // Sync sky zoom (FOV) with magnitude slider
-  if (skyCamera) {
-    skyCamera.fov = fovFromMag(magMax);
-    skyCamera.updateProjectionMatrix();
-  }
-  updateSimulation();
-});
 document.getElementById('sat-size-slider').addEventListener('input', e=>{
   satSize = +e.target.value;
   updateSimulation();
@@ -1215,7 +1182,6 @@ document.getElementById('tog-alt').addEventListener('change', e=>{
 initGlobe();
 initMap();
 initSky();
-syncMagSliderFromFOV(); // initial Mag max matches default FOV
 requestAnimationFrame(tick);
 
 // Load star catalog then parse default IOD
