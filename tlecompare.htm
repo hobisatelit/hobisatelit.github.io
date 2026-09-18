@@ -98,6 +98,22 @@
   #gt-wrap.is-fullscreen #gt-canvas{ border-radius:0; }
   .gt-hint{ font-size:9.5px; color:var(--text-faint); margin-top:3px; }
 
+  .sky-location-row{ display:flex; gap:7px; align-items:center; margin-bottom:8px; flex-wrap:wrap; }
+  #sky-lat, #sky-lon{
+    width:78px; background:var(--bg-raise); color:var(--text); border:1px solid var(--line); border-radius:var(--radius);
+    font-family:'IBM Plex Mono',monospace; font-size:12px; padding:6px 7px;
+  }
+  #sky-lat:focus, #sky-lon:focus{ outline:none; border-color:var(--accent); }
+  #sky-wrap{ position:relative; width:100%; aspect-ratio:1; max-height:420px; margin:0 auto; touch-action:none; }
+  #sky-canvas{ display:block; width:100%; height:100%; border-radius:var(--radius); }
+  #sky-wrap.is-fullscreen{
+    position:fixed !important; inset:0; z-index:1000; width:100vw !important;
+    height:100vh !important; height:100dvh !important; max-height:none !important; aspect-ratio:auto !important;
+    background:#05070f;
+  }
+  #sky-wrap.is-fullscreen #sky-canvas{ border-radius:0; }
+  .sky-controls-row{ display:flex; gap:8px; margin-top:8px; }
+
   /* scroll content */
   #scroll-content{ padding-bottom:40px; }
   .intro{ padding:14px 16px 4px; color:var(--text-dim); font-size:13px; max-width:48ch; }
@@ -216,6 +232,25 @@
   </div>
 
   <div id="scroll-content">
+    <div class="section">
+      <h2>Sky view</h2>
+      <p class="section-sub">What's overhead from your location right now — azimuth measured clockwise from North, altitude up from the horizon.</p>
+      <div class="sky-location-row">
+        <button id="btn-use-location">Use my location</button>
+        <input type="text" id="sky-lat" inputmode="decimal" placeholder="lat" autocomplete="off">
+        <input type="text" id="sky-lon" inputmode="decimal" placeholder="lon" autocomplete="off">
+        <button id="btn-set-location">Set</button>
+      </div>
+      <div id="sky-location-status" class="time-hint">No location set yet.</div>
+      <div id="sky-wrap">
+        <canvas id="sky-canvas"></canvas>
+        <button class="fullscreen-btn" id="btn-fullscreen-sky">&#9974;</button>
+      </div>
+      <div class="sky-controls-row">
+        <button id="btn-toggle-azalt">Show az/alt</button>
+      </div>
+    </div>
+
     <p class="intro">Paste real TLE data for two or more satellites, give each a color and name, then zoom in until you can see exactly where their orbits and ground tracks differ.</p>
 
     <div class="section">
@@ -339,7 +374,7 @@ function drawWorldMapGeneric(ctx, w, h, projectFn, lonSpan, latSpan){
   const eq0 = projectFn(-180,0), eq1 = projectFn(180,0);
   ctx.beginPath(); ctx.moveTo(eq0[0],eq0[1]); ctx.lineTo(eq1[0],eq1[1]); ctx.stroke();
 
-  ctx.fillStyle = '#1c3d2c';
+  ctx.fillStyle = '#000000';
   const antTop = projectFn(0,-63);
   ctx.fillRect(0, antTop[1], w, h-antTop[1]);
   CONTINENTS.forEach(poly=>{
@@ -851,10 +886,11 @@ function rebuild3DTrackLine(sat){
   sat.three.groundTrackLine3D.geometry.dispose();
   sat.three.groundTrackLine3D.geometry = pts.length > 1 ? new THREE.BufferGeometry().setFromPoints(pts) : new THREE.BufferGeometry();
 }
-// Keeps the flat ground-track map and the 3D trail on the globe in sync with each other.
+// Keeps the flat ground-track map, the 3D trail on the globe, and the sky view in sync with each other.
 function syncTrackVisuals(){
   drawGroundTrack();
   satellites.forEach(rebuild3DTrackLine);
+  drawSkyView();
 }
 
 // Called whenever a slider is edited: the current sim clock becomes this satellite's new
@@ -1097,16 +1133,26 @@ const gtCanvas = document.getElementById('gt-canvas');
 const gtCtx = gtCanvas.getContext('2d');
 const gtView = { cx:0, cy:0, scale:1 };
 const GT_MAX_SCALE = 80;
+let gtFit = { pxPerDeg:1, offsetX:0, offsetY:0, lonSpan:360, latSpan:180 };
 
 function gtClamp(){
   const halfLon = 180/gtView.scale, halfLat = 90/gtView.scale;
   gtView.cx = (halfLon>=180) ? 0 : clamp(gtView.cx, -180+halfLon, 180-halfLon);
   gtView.cy = (halfLat>=90) ? 0 : clamp(gtView.cy, -90+halfLat, 90-halfLat);
 }
-function gtProject(lon,lat,w,h){
-  const halfLon = 180/gtView.scale, halfLat = 90/gtView.scale;
-  const x = (lon - (gtView.cx-halfLon)) / (2*halfLon) * w;
-  const y = ((gtView.cy+halfLat) - lat) / (2*halfLat) * h;
+// Equirectangular is 2:1 (360deg wide : 180deg tall) — fit that box into whatever shape the
+// canvas actually is (letterboxed), so degrees-per-pixel stays equal on both axes and the
+// map never looks stretched, in compact view or fullscreen, portrait or landscape.
+function gtComputeFit(w,h){
+  const lonSpan = 360/gtView.scale, latSpan = 180/gtView.scale;
+  const pxPerDeg = Math.min(w/lonSpan, h/latSpan);
+  const mapW = lonSpan*pxPerDeg, mapH = latSpan*pxPerDeg;
+  return { pxPerDeg, offsetX:(w-mapW)/2, offsetY:(h-mapH)/2, lonSpan, latSpan };
+}
+function gtProject(lon,lat){
+  const halfLon = gtFit.lonSpan/2, halfLat = gtFit.latSpan/2;
+  const x = gtFit.offsetX + (lon - (gtView.cx-halfLon))*gtFit.pxPerDeg;
+  const y = gtFit.offsetY + ((gtView.cy+halfLat) - lat)*gtFit.pxPerDeg;
   return [x,y];
 }
 function resizeGT(){
@@ -1115,25 +1161,34 @@ function resizeGT(){
   gtCanvas.width = w*dpr; gtCanvas.height = h*dpr;
   drawGroundTrack();
 }
-function drawRealMapCrop(ctx, w, h){
+function drawRealMapCrop(ctx, fit){
   const img = realMapImageEl;
   const iw = img.naturalWidth, ih = img.naturalHeight;
-  const halfLon = 180/gtView.scale, halfLat = 90/gtView.scale;
+  const halfLon = fit.lonSpan/2, halfLat = fit.latSpan/2;
   const lonMin = gtView.cx-halfLon, lonMax = gtView.cx+halfLon;
   const latMax = clamp(gtView.cy+halfLat,-90,90), latMin = clamp(gtView.cy-halfLat,-90,90);
   const [sx0, sy0] = lonLatToXY(lonMin, latMax, iw, ih);
   const [sx1, sy1] = lonLatToXY(lonMax, latMin, iw, ih);
-  ctx.drawImage(img, sx0, sy0, Math.max(1,sx1-sx0), Math.max(1,sy1-sy0), 0, 0, w, h);
+  const mapW = fit.lonSpan*fit.pxPerDeg, mapH = fit.latSpan*fit.pxPerDeg;
+  ctx.drawImage(img, sx0, sy0, Math.max(1,sx1-sx0), Math.max(1,sy1-sy0), fit.offsetX, fit.offsetY, mapW, mapH);
 }
 function drawGroundTrack(){
   const w = gtCanvas.width, h = gtCanvas.height;
   if(!w || !h) return;
+  gtFit = gtComputeFit(w,h);
+  gtCtx.fillStyle = '#05070f'; // letterbox bars outside the fitted 2:1 map area
+  gtCtx.fillRect(0,0,w,h);
+
+  gtCtx.save();
+  gtCtx.beginPath();
+  gtCtx.rect(gtFit.offsetX, gtFit.offsetY, gtFit.lonSpan*gtFit.pxPerDeg, gtFit.latSpan*gtFit.pxPerDeg);
+  gtCtx.clip();
   if(mapMode==='real' && realMapStatus==='ready'){
-    drawRealMapCrop(gtCtx, w, h);
+    drawRealMapCrop(gtCtx, gtFit);
   } else {
-    const lonSpan = 360/gtView.scale, latSpan = 180/gtView.scale;
-    drawWorldMapGeneric(gtCtx, w, h, (lon,lat)=>gtProject(lon,lat,w,h), lonSpan, latSpan);
+    drawWorldMapGeneric(gtCtx, w, h, (lon,lat)=>gtProject(lon,lat), gtFit.lonSpan, gtFit.latSpan);
   }
+  gtCtx.restore();
 
   satellites.forEach(sat=>{
     gtCtx.strokeStyle = sat.color;
@@ -1142,7 +1197,7 @@ function drawGroundTrack(){
     let started=false, prevX=null;
     for(let k=0;k<sat.track.length;k++){
       const [lon,lat] = sat.track[k];
-      const [x,y] = gtProject(lon,lat,w,h);
+      const [x,y] = gtProject(lon,lat);
       if(!started || (prevX!=null && Math.abs(x-prevX) > w*0.5)){ gtCtx.moveTo(x,y); started=true; }
       else { gtCtx.lineTo(x,y); }
       prevX = x;
@@ -1150,7 +1205,7 @@ function drawGroundTrack(){
     gtCtx.stroke();
     if(sat.track.length){
       const [lon,lat] = sat.track[sat.track.length-1];
-      const [x,y] = gtProject(lon,lat,w,h);
+      const [x,y] = gtProject(lon,lat);
       gtCtx.fillStyle = sat.color;
       gtCtx.beginPath(); gtCtx.arc(x,y,Math.max(2.6,w*0.007),0,Math.PI*2); gtCtx.fill();
     }
@@ -1163,12 +1218,11 @@ gtCanvas.addEventListener('pointerdown', e=>{ gtCanvas.setPointerCapture(e.point
 gtCanvas.addEventListener('pointermove', e=>{
   if(!gtPointers.has(e.pointerId)) return;
   const prev = gtPointers.get(e.pointerId); const cur = {x:e.clientX,y:e.clientY}; gtPointers.set(e.pointerId,cur);
-  const rect = gtCanvas.getBoundingClientRect();
   if(gtPointers.size===1){
     const dx=cur.x-prev.x, dy=cur.y-prev.y;
-    const halfLon=180/gtView.scale, halfLat=90/gtView.scale;
-    gtView.cx -= dx/rect.width*2*halfLon;
-    gtView.cy += dy/rect.height*2*halfLat;
+    const dpr = Math.min(window.devicePixelRatio||1, 2);
+    gtView.cx -= (dx*dpr)/gtFit.pxPerDeg;
+    gtView.cy += (dy*dpr)/gtFit.pxPerDeg;
     gtClamp(); drawGroundTrack();
   } else if(gtPointers.size===2){
     const pts = Array.from(gtPointers.values());
@@ -1190,6 +1244,170 @@ gtCanvas.addEventListener('wheel', e=>{
   gtClamp(); drawGroundTrack();
 }, { passive:false });
 document.getElementById('btn-reset-gt').addEventListener('click', ()=>{ gtView.cx=0; gtView.cy=0; gtView.scale=1; drawGroundTrack(); });
+
+/* ============================== sky view ============================== */
+let observerLat = null, observerLon = null;
+let showAzAlt = false;
+let skyFS = false;
+
+// Earth-fixed (ECEF-equivalent) Cartesian from lat/lon/radius, using the same convention
+// already established for ground-track lon/lat (x=r*cos(lat)*cos(lon), y=r*cos(lat)*sin(lon), z=r*sin(lat)).
+function ecefFromLatLonR(lat, lon, r){
+  const latR = deg2rad(lat), lonR = deg2rad(lon);
+  return { x: r*Math.cos(latR)*Math.cos(lonR), y: r*Math.cos(latR)*Math.sin(lonR), z: r*Math.sin(latR) };
+}
+// Standard ECEF -> topocentric East-North-Up, then azimuth (clockwise from North) and altitude.
+function azAltFromECEF(obsLat, obsLon, obsECEF, targetECEF){
+  const dx = targetECEF.x-obsECEF.x, dy = targetECEF.y-obsECEF.y, dz = targetECEF.z-obsECEF.z;
+  const latR = deg2rad(obsLat), lonR = deg2rad(obsLon);
+  const sinLat=Math.sin(latR), cosLat=Math.cos(latR), sinLon=Math.sin(lonR), cosLon=Math.cos(lonR);
+  const E = -sinLon*dx + cosLon*dy;
+  const N = -sinLat*cosLon*dx - sinLat*sinLon*dy + cosLat*dz;
+  const U = cosLat*cosLon*dx + cosLat*sinLon*dy + sinLat*dz;
+  const az = (rad2deg(Math.atan2(E,N))+360)%360;
+  const alt = rad2deg(Math.atan2(U, Math.hypot(E,N)));
+  return { az, alt };
+}
+function satAzAltNow(sat){
+  const st = satStateAt(sat, simClockMs);
+  const theta = gmstRad(simClockMs);
+  const cosT=Math.cos(theta), sinT=Math.sin(theta);
+  const xE = st.x*cosT+st.y*sinT, yE = -st.x*sinT+st.y*cosT;
+  const obsECEF = ecefFromLatLonR(observerLat, observerLon, EARTH_R_KM);
+  return azAltFromECEF(observerLat, observerLon, obsECEF, {x:xE, y:yE, z:st.z});
+}
+
+const skyCanvas = document.getElementById('sky-canvas');
+const skyCtx = skyCanvas.getContext('2d');
+function resizeSky(){
+  const w = skyCanvas.clientWidth, h = skyCanvas.clientHeight;
+  const dpr = Math.min(window.devicePixelRatio||1, 2);
+  skyCanvas.width = w*dpr; skyCanvas.height = h*dpr;
+  drawSkyView();
+}
+function drawSkyView(){
+  const w = skyCanvas.width, h = skyCanvas.height;
+  if(!w || !h) return;
+  skyCtx.fillStyle = '#05070f';
+  skyCtx.fillRect(0,0,w,h);
+
+  const size = Math.min(w,h);
+  const cx = w/2, cy = h/2;
+  const R = size*0.40;
+
+  if(observerLat==null || observerLon==null){
+    skyCtx.fillStyle = 'rgba(220,230,245,0.5)';
+    skyCtx.font = Math.max(12,size*0.032)+'px "Space Grotesk", sans-serif';
+    skyCtx.textAlign = 'center'; skyCtx.textBaseline = 'middle';
+    skyCtx.fillText('Set your location above', cx, cy-8);
+    skyCtx.fillText('to see the sky', cx, cy+14);
+    return;
+  }
+
+  // horizon disc + altitude reference rings
+  skyCtx.fillStyle = '#0a1220';
+  skyCtx.beginPath(); skyCtx.arc(cx,cy,R,0,Math.PI*2); skyCtx.fill();
+  skyCtx.strokeStyle = 'rgba(120,170,255,0.35)'; skyCtx.lineWidth = Math.max(1,size*0.003);
+  skyCtx.stroke();
+  skyCtx.strokeStyle = 'rgba(120,170,255,0.16)'; skyCtx.lineWidth = Math.max(1,size*0.0018);
+  [30,60].forEach(ring=>{
+    const r = R*(90-ring)/90;
+    skyCtx.beginPath(); skyCtx.arc(cx,cy,r,0,Math.PI*2); skyCtx.stroke();
+  });
+
+  // cardinal directions, big and bold as requested
+  skyCtx.fillStyle = '#eef3fb';
+  skyCtx.font = 'bold '+Math.max(16,size*0.062)+'px "Space Grotesk", sans-serif';
+  skyCtx.textAlign = 'center'; skyCtx.textBaseline = 'middle';
+  const labelR = R + Math.max(16, size*0.075);
+  skyCtx.fillText('N', cx, cy-labelR);
+  skyCtx.fillText('S', cx, cy+labelR);
+  skyCtx.fillText('E', cx+labelR, cy);
+  skyCtx.fillText('W', cx-labelR, cy);
+
+  const obsECEF = ecefFromLatLonR(observerLat, observerLon, EARTH_R_KM);
+  const toXY = (az,alt)=>{
+    const r = R*(90-alt)/90;
+    const azRad = deg2rad(az);
+    return [cx + r*Math.sin(azRad), cy - r*Math.cos(azRad)];
+  };
+
+  satellites.forEach(sat=>{
+    skyCtx.strokeStyle = sat.color;
+    skyCtx.lineWidth = Math.max(1.1, size*0.0018);
+    skyCtx.beginPath();
+    let started = false;
+    for(let k=0;k<sat.track.length;k++){
+      const [lon,lat,r] = sat.track[k];
+      const satECEF = ecefFromLatLonR(lat, lon, r);
+      const {az,alt} = azAltFromECEF(observerLat, observerLon, obsECEF, satECEF);
+      if(alt < 0){ started = false; continue; }
+      const [x,y] = toXY(az,alt);
+      if(!started){ skyCtx.moveTo(x,y); started = true; } else { skyCtx.lineTo(x,y); }
+    }
+    skyCtx.stroke();
+
+    const now = satAzAltNow(sat);
+    if(now.alt >= 0){
+      const [x,y] = toXY(now.az, now.alt);
+      skyCtx.fillStyle = sat.color;
+      skyCtx.beginPath(); skyCtx.arc(x,y,Math.max(3,size*0.01),0,Math.PI*2); skyCtx.fill();
+
+      skyCtx.textAlign = 'left'; skyCtx.textBaseline = 'middle';
+      skyCtx.font = Math.max(10,size*0.028)+'px "IBM Plex Mono", monospace';
+      let label = sat.name + (showAzAlt ? '  '+now.az.toFixed(0)+'\u00b0/'+now.alt.toFixed(0)+'\u00b0' : '');
+      skyCtx.fillText(label, x+Math.max(6,size*0.014), y);
+    }
+  });
+}
+
+/* ---- observer location controls ---- */
+const skyStatus = document.getElementById('sky-location-status');
+function setObserverLocation(lat, lon, statusText){
+  observerLat = lat; observerLon = lon;
+  document.getElementById('sky-lat').value = lat.toFixed(4);
+  document.getElementById('sky-lon').value = lon.toFixed(4);
+  skyStatus.textContent = statusText;
+  drawSkyView();
+}
+document.getElementById('btn-use-location').addEventListener('click', ()=>{
+  if(!navigator.geolocation){ skyStatus.textContent = "This browser doesn't support geolocation — enter coordinates manually."; return; }
+  skyStatus.textContent = 'Requesting your location…';
+  navigator.geolocation.getCurrentPosition(
+    pos=> setObserverLocation(pos.coords.latitude, pos.coords.longitude, 'Using your location: '+pos.coords.latitude.toFixed(2)+', '+pos.coords.longitude.toFixed(2)),
+    err=>{ skyStatus.textContent = "Couldn't get your location (" + err.message + ") — enter coordinates manually."; },
+    { enableHighAccuracy:false, timeout:8000 }
+  );
+});
+document.getElementById('btn-set-location').addEventListener('click', ()=>{
+  const lat = parseFloat(document.getElementById('sky-lat').value);
+  const lon = parseFloat(document.getElementById('sky-lon').value);
+  if(Number.isNaN(lat) || Number.isNaN(lon) || lat<-90 || lat>90 || lon<-180 || lon>180){
+    skyStatus.textContent = 'Enter a valid latitude (-90 to 90) and longitude (-180 to 180).';
+    return;
+  }
+  setObserverLocation(lat, lon, 'Location set: '+lat.toFixed(2)+', '+lon.toFixed(2));
+});
+
+/* ---- az/alt label toggle ---- */
+const btnToggleAzAlt = document.getElementById('btn-toggle-azalt');
+btnToggleAzAlt.addEventListener('click', ()=>{
+  showAzAlt = !showAzAlt;
+  btnToggleAzAlt.textContent = showAzAlt ? 'Hide az/alt' : 'Show az/alt';
+  drawSkyView();
+});
+
+/* ---- sky fullscreen ---- */
+const skyWrap = document.getElementById('sky-wrap');
+document.getElementById('btn-fullscreen-sky').addEventListener('click', ()=>{
+  skyFS = !skyFS;
+  skyWrap.classList.toggle('is-fullscreen', skyFS);
+  document.body.style.overflow = skyFS ? 'hidden' : '';
+  document.getElementById('btn-fullscreen-sky').innerHTML = skyFS ? '&#10005;' : '&#9974;';
+  requestAnimationFrame(resizeSky);
+});
+window.addEventListener('resize', resizeSky);
+
 
 /* ============================== real map toggle ============================== */
 const btnMapMode = document.getElementById('btn-map-mode');
@@ -1397,7 +1615,7 @@ function updateSatAt(sat, absMs){
   const xE = st.x*cosT + st.y*sinT, yE = -st.x*sinT + st.y*cosT;
   const lat = rad2deg(Math.asin(clamp(st.z/st.r,-1,1)));
   const lon = rad2deg(Math.atan2(yE,xE));
-  sat.track.push([lon,lat]);
+  sat.track.push([lon,lat,st.r]);
   if(sat.track.length > 6000) sat.track.shift();
   return st;
 }
@@ -1504,6 +1722,7 @@ function animate(now){
 /* ============================== init ============================== */
 resizeThree();
 resizeGT();
+resizeSky();
 earthMesh.rotation.y = gmstRad(simClockMs);
 updateSunLight(simClockMs);
 applyLightingMode();
