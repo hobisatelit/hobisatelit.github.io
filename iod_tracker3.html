@@ -84,6 +84,18 @@
     display:flex; gap:7px; align-items:center; flex-wrap:wrap;
     width:100%;
   }
+  .settings-panel{
+    background:var(--panel); border-bottom:1px solid var(--border);
+    padding:6px 14px; flex-shrink:0; display:flex; flex-direction:column; gap:6px;
+    overflow:auto; max-height:40vh;
+  }
+  .settings-panel.collapsed .settings-body{display:none}
+  .settings-body{
+    display:flex; flex-direction:column; gap:10px;
+  }
+  .settings-row{
+    display:flex; gap:10px; flex-wrap:wrap; align-items:flex-start;
+  }
   button,select,input[type=number]{
     background:var(--panel-2); color:var(--text);
     border:1px solid var(--border);
@@ -99,7 +111,46 @@
   }
   [data-theme="light"] button.active{ color:#fff; }
   input[type=number]{width:72px}
+  /* Station coords: no spinner arrows, wider for full values */
+  input.coord-input{
+    width:118px; min-width:100px;
+    -moz-appearance:textfield;
+    appearance:textfield;
+  }
+  input.coord-input::-webkit-outer-spin-button,
+  input.coord-input::-webkit-inner-spin-button{
+    -webkit-appearance:none; margin:0;
+  }
   label{font-size:.78rem;color:var(--muted)}
+  .action-row{
+    display:flex; gap:8px; align-items:center; flex-wrap:wrap;
+    margin-top:4px;
+  }
+  .view-toolbar{
+    position:absolute; top:8px; right:8px; z-index:25;
+    display:flex; gap:4px;
+  }
+  .btn-fs{
+    min-height:36px; min-width:36px; padding:6px 8px;
+    font-size:.85rem; line-height:1;
+    background:var(--label-bg); color:var(--text);
+    border:1px solid var(--border); border-radius:6px;
+    cursor:pointer;
+  }
+  .btn-fs:hover{border-color:var(--accent); color:var(--accent)}
+  .view:fullscreen, .view:-webkit-full-screen{
+    background:var(--view-bg);
+  }
+  .view:fullscreen #globe-container,
+  .view:fullscreen #map,
+  .view:fullscreen #sky-container,
+  .view:-webkit-full-screen #globe-container,
+  .view:-webkit-full-screen #map,
+  .view:-webkit-full-screen #sky-container{
+    bottom:0;
+  }
+  .view:fullscreen .view-resize,
+  .view:-webkit-full-screen .view-resize{ display:none; }
   .slider-box{display:flex;align-items:center;gap:6px;font-size:.78rem;color:var(--muted)}
   .slider-box input[type=range]{width:100px; min-height:28px; accent-color:var(--accent)}
   .toggle-box{display:flex;gap:10px;align-items:center;font-size:.78rem;flex-wrap:wrap}
@@ -129,14 +180,70 @@
     font-family: ui-monospace, "Cascadia Code", "SF Mono", Consolas, monospace;
     font-size:.78rem; resize:vertical; line-height:1.45;
   }
-  .station-box{display:flex;flex-direction:column;gap:6px;min-width:180px}
+  .station-box{display:flex;flex-direction:column;gap:6px;min-width:240px;flex:1;max-width:100%}
   .station-box .field-row{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+  .station-list{
+    display:flex; flex-direction:column; gap:4px; max-height:140px; overflow:auto;
+    border:1px solid var(--border); border-radius:6px; padding:4px; background:var(--ink);
+  }
+  .station-row{
+    display:flex; align-items:center; gap:6px; flex-wrap:wrap;
+    padding:6px 8px; border-radius:4px; font-size:.75rem;
+    border:1px solid transparent; cursor:default;
+  }
+  .station-row.is-default{
+    border-color:var(--accent); background:var(--panel-2);
+  }
+  .station-row .sid{ font-weight:600; min-width:3.2em; }
+  .station-row button{
+    min-height:28px; padding:4px 8px; font-size:.72rem;
+  }
+  .station-form{
+    display:flex; flex-wrap:wrap; gap:6px; align-items:center; margin-top:4px;
+  }
+  .station-form input.coord-input{ width:90px; }
+  .station-form input#st-id{ width:72px; }
+  #btn-clear-data{
+    background:transparent; color:var(--orange); border-color:var(--orange);
+  }
+  #btn-clear-data:hover{ background:var(--orange); color:#fff; }
   .sat-list{display:flex;flex-wrap:wrap;gap:8px;font-size:.75rem}
   .sat-item{
     background:var(--ink); border:1px solid var(--border); border-radius:6px;
-    padding:8px 11px; min-width:140px;
+    padding:8px 11px; min-width:140px; cursor:pointer;
+    transition: opacity .15s, border-color .15s, filter .15s;
+    user-select:none;
+  }
+  .sat-item:hover{ border-color:var(--accent); }
+  .sat-item.hidden-sat{
+    opacity:0.55; filter:grayscale(1);
+    border-color:var(--border);
+    background:var(--panel-2);
+  }
+  .sat-item .vis-hint{
+    font-size:.65rem; color:var(--muted); margin-top:4px;
   }
   .sat-header{display:flex;align-items:center;gap:6px;margin-bottom:3px; font-size:.85rem}
+  /* Sky view crosshair */
+  .sky-crosshair{
+    position:absolute; inset:0 0 14px 0; pointer-events:none; z-index:15;
+  }
+  .sky-crosshair::before, .sky-crosshair::after{
+    content:''; position:absolute; background:rgba(239,68,68,.85);
+  }
+  .sky-crosshair::before{ /* horizontal */
+    left:50%; top:50%; width:28px; height:2px;
+    transform:translate(-50%, -50%);
+  }
+  .sky-crosshair::after{ /* vertical */
+    left:50%; top:50%; width:2px; height:28px;
+    transform:translate(-50%, -50%);
+  }
+  .sky-crosshair .ring{
+    position:absolute; left:50%; top:50%;
+    width:18px; height:18px; border:1.5px solid rgba(239,68,68,.7);
+    border-radius:50%; transform:translate(-50%, -50%);
+  }
   .dot{width:8px;height:8px;border-radius:50%}
   .param{font-size:.72rem; color:var(--muted)}
   .param span{color:var(--green)}
@@ -213,6 +320,19 @@
     font-family:ui-monospace, Consolas, monospace; font-size:.78rem; min-width:0;
     color:var(--muted);
   }
+  /* Small satellite name / NORAD tooltips on the map */
+  .sat-label-tip{
+    font-size:10px !important;
+    line-height:1.2 !important;
+    padding:2px 5px !important;
+    border-radius:3px !important;
+    background:var(--label-bg) !important;
+    color:var(--text) !important;
+    border:1px solid var(--border) !important;
+    box-shadow:none !important;
+    font-family:system-ui,Segoe UI,sans-serif !important;
+  }
+  .sat-label-tip::before{ display:none !important; }
 
   @media (min-width:700px), ((orientation:landscape) and (min-width:500px)){
     .view-tabs{display:none}
@@ -241,69 +361,84 @@
 <body>
 <header>
   <div class="title-row">
-    <h1>IOD Tracker <span>optical</span></h1>
+    <h1>IOD Tracker <span>make optical fun again</span></h1>
     <button type="button" id="btn-theme" title="Toggle day / night theme" aria-label="Toggle theme">☀</button>
-  </div>
-  <div class="controls">
-    <button id="btn-parse">Parse & Estimate</button>
-    <button id="btn-play">Play</button>
-    <select id="speed">
-      <option value="0.2">0.2×</option>
-      <option value="1" selected>1×</option>
-      <option value="5">5×</option>
-      <option value="10">10×</option>
-      <option value="30">30×</option>
-      <option value="60">60×</option>
-      <option value="300">5 min/s</option>
-      <option value="-1">−1×</option>
-      <option value="-5">−5×</option>
-      <option value="-30">−30×</option>
-    </select>
-    <label>Fallback Alt
-      <input type="number" id="sat-alt" value="500" step="50" min="150" max="45000"> km
-    </label>
-
-    <div class="slider-box">
-      <span>Sat size</span>
-      <input type="range" id="sat-size-slider" min="0.5" max="3" value="0.5" step="0.1">
-    </div>
-
-    <div class="slider-box" title="Show stars brighter than this magnitude">
-      <span>Mag &lt;</span>
-      <input type="range" id="mag-slider" min="1" max="12" value="4" step="0.5">
-      <span id="mag-label">4.0</span>
-    </div>
-
-    <div class="toggle-box">
-      <label><input type="checkbox" id="tog-const" checked> Constellations</label>
-      <label><input type="checkbox" id="tog-bodies" checked> Sun/Moon</label>
-      <label><input type="checkbox" id="tog-alt" checked> Altitude°</label>
-    </div>
-    <label style="font-size:.78rem;color:var(--muted);display:flex;align-items:center;gap:4px;cursor:pointer">
-      Load stars
-      <input type="file" id="star-file" accept=".csv,text/csv" style="font-size:.72rem;max-width:140px">
-    </label>
-    <span id="star-status" style="font-size:.75rem;color:var(--muted)"></span>
   </div>
 </header>
 
+<div class="settings-panel collapsed" id="settings-panel">
+  <button type="button" class="input-toggle" id="btn-toggle-settings" aria-expanded="false">
+    <span>Settings</span>
+    <span class="chevron" id="settings-chevron">▸</span>
+  </button>
+  <div class="settings-body" id="settings-body">
+    <div class="settings-row">
+      <div class="station-box">
+        <label>Observation stations</label>
+        <div class="station-list" id="station-list"></div>
+        <div class="station-form">
+          <label>ID <input type="text" id="st-id" class="coord-input" value="9999" autocomplete="off"></label>
+          <label>Lat <input type="text" id="st-lat" class="coord-input" value="0" inputmode="decimal" autocomplete="off"></label>
+          <label>Lon <input type="text" id="st-lon" class="coord-input" value="0" inputmode="decimal" autocomplete="off"></label>
+          <label>Alt m <input type="text" id="st-alt" class="coord-input" value="0" inputmode="decimal" autocomplete="off"></label>
+          <button type="button" id="btn-st-add" title="Add or update station">Add / Update</button>
+        </div>
+      </div>
+    </div>
+    <div class="controls">
+      <div class="slider-box">
+        <span>Sat size</span>
+        <input type="range" id="sat-size-slider" min="0.15" max="3" value="0.35" step="0.05">
+      </div>
+      <div class="slider-box" title="Show stars brighter than this magnitude">
+        <span>Mag &lt;</span>
+        <input type="range" id="mag-slider" min="1" max="12" value="4" step="0.5">
+        <span id="mag-label">4.0</span>
+      </div>
+      <div class="toggle-box">
+        <label><input type="checkbox" id="tog-sat-labels" checked> Sat labels</label>
+        <label><input type="checkbox" id="tog-const" checked> Constellations</label>
+        <label><input type="checkbox" id="tog-bodies" checked> Sun/Moon</label>
+        <label><input type="checkbox" id="tog-alt" checked> Altitude°</label>
+      </div>
+      <label style="font-size:.78rem;color:var(--muted);display:flex;align-items:center;gap:4px;cursor:pointer">
+        Load stars
+        <input type="file" id="star-file" accept=".csv,text/csv" style="font-size:.72rem;max-width:140px">
+      </label>
+      <span id="star-status" style="font-size:.75rem;color:var(--muted)"></span>
+      <button type="button" id="btn-clear-data" title="Reset all saved data">Reset data</button>
+    </div>
+  </div>
+</div>
+
 <div class="input-panel" id="input-panel">
   <button type="button" class="input-toggle" id="btn-toggle-input" aria-expanded="true">
-    <span>IOD input &amp; station</span>
+    <span>IOD / TLE input</span>
     <span class="chevron" id="input-chevron">▾</span>
   </button>
   <div class="input-body" id="input-body">
     <div class="input-row">
-      <textarea id="iod-input" placeholder="Paste IOD lines here (one per line)">10025 77 041B   9999 G 20260916212522405 17 25 0219388-070186 37 S&#10;10025 77 041B   9999 G 20260916212542113 17 25 0302898-121315 37 S&#10;10025 77 041B   9999 G 20260916212602102 17 25 0353256-173555 37 S</textarea>
-      <div class="station-box">
-        <label>Observer station</label>
-        <div class="field-row">
-        <label>Lat <input type="number" id="obs-lat" value="-8.746" step="0.0001"></label>
-        <label>Lon <input type="number" id="obs-lon" value="115.161" step="0.0001"></label>
-        <label>Alt m <input type="number" id="obs-alt" value="10" step="1"></label>
-        </div>
-        <div class="status" id="status">Ready</div>
-      </div>
+      <textarea id="iod-input" placeholder="Paste IOD lines and/or TLE (name + 2 lines). Example IOD or TLE:">69786 26 151Z   9999 G 20260916210304804 17 25 0254379-070853 37 S</textarea>
+    </div>
+    <div class="action-row">
+      <label>Fallback Alt
+        <input type="number" id="sat-alt" class="coord-input" value="500" min="150" max="45000" inputmode="decimal"> km
+      </label>
+      <button type="button" id="btn-parse">Parse &amp; Estimate</button>
+      <button type="button" id="btn-play">Play</button>
+      <select id="speed" title="Playback speed">
+        <option value="0.2">0.2×</option>
+        <option value="1" selected>1×</option>
+        <option value="5">5×</option>
+        <option value="10">10×</option>
+        <option value="30">30×</option>
+        <option value="60">60×</option>
+        <option value="300">5 min/s</option>
+        <option value="-1">−1×</option>
+        <option value="-5">−5×</option>
+        <option value="-30">−30×</option>
+      </select>
+      <div class="status" id="status">Ready</div>
     </div>
     <div class="sat-list" id="sat-list"></div>
   </div>
@@ -318,19 +453,29 @@
 <div class="views">
   <div class="view active" id="view-globe" data-view="globe">
     <div class="view-label">3D Globe</div>
+    <div class="view-toolbar">
+      <button type="button" class="btn-fs" data-fs="view-globe" title="Fullscreen">⛶</button>
+    </div>
     <div id="globe-container"></div>
     <div class="view-hint">Drag to rotate · Pinch or scroll to zoom</div>
     <div class="view-resize" title="Drag to resize height"></div>
   </div>
   <div class="view" id="view-map" data-view="map">
     <div class="view-label">Ground Map</div>
+    <div class="view-toolbar">
+      <button type="button" class="btn-fs" data-fs="view-map" title="Fullscreen">⛶</button>
+    </div>
     <div id="map"></div>
     <div class="view-hint">Pinch to zoom · Drag to pan</div>
     <div class="view-resize" title="Drag to resize height"></div>
   </div>
   <div class="view" id="view-sky" data-view="sky">
-    <div class="view-label">Sky View</div>
+    <div class="view-label" id="sky-view-label">Sky View · FOV —°</div>
+    <div class="view-toolbar">
+      <button type="button" class="btn-fs" data-fs="view-sky" title="Fullscreen">⛶</button>
+    </div>
     <div id="sky-container"></div>
+    <div class="sky-crosshair" aria-hidden="true"><div class="ring"></div></div>
     <div class="view-hint">Drag to look around · Pinch or scroll to zoom</div>
     <div class="view-resize" title="Drag to resize height"></div>
   </div>
@@ -345,35 +490,271 @@
 /* ============================================================
    Theme: system preference + manual day/night toggle
    ============================================================ */
-(function initTheme(){
-  const root = document.documentElement;
-  const btn = document.getElementById('btn-theme');
+// Hoisted so theme code never hits TDZ on let bindings
+var scene=null, camera=null, renderer=null, earthGroup=null, globeStarMat=null;
+var map=null, baseTileLayer=null, markersLayer=null, iodLayer=null, orbitLayer=null;
+var skyScene=null, skyCamera=null, skyRenderer=null, skyGroundMat=null;
+var skyStarGroup=null, skyConstGroup=null, skySatGroup=null, skyTrailGroup=null, skyLabelGroup=null, skyAltGroup=null;
 
+function getThemeMode(){
+  return document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark';
+}
+
+/** Update 3D globe / map / sky for day vs night (safe if views not ready) */
+function applyThemeVisuals(){
+  const day = getThemeMode() === 'light';
+  const skyCol = day ? 0xf1f5f9 : 0x030712;   // light grey-white / deep night
+  const globeBg = day ? 0xd1d5db : 0x000000;
+  const groundCol = day ? 0x9ca3af : 0x000000;
+  const starCol = day ? 0x4b5563 : 0xffffff;
+
+  try {
+    if (globeStarMat) globeStarMat.color.setHex(starCol);
+    if (scene) scene.background = new THREE.Color(globeBg);
+    if (renderer) renderer.setClearColor(globeBg, 1);
+  } catch (e) { console.warn('theme globe', e); }
+
+  try {
+    if (map) {
+      if (baseTileLayer) {
+        try { map.removeLayer(baseTileLayer); } catch (e) {}
+      }
+      const url = day
+        ? 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png?key=cb1_3pnj_1_e9de23cbd8d3e0ce4979cf2f'
+        : 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png?key=cb1_3pnj_1_e9de23cbd8d3e0ce4979cf2f';
+      baseTileLayer = L.tileLayer(url, { attribution: '© OSM © CARTO', maxZoom: 18 });
+      baseTileLayer.addTo(map);
+      try {
+        if (orbitLayer) orbitLayer.bringToFront();
+        if (iodLayer) iodLayer.bringToFront();
+        if (markersLayer) markersLayer.bringToFront();
+      } catch (e) {}
+    }
+  } catch (e) { console.warn('theme map', e); }
+
+  try {
+    if (skyScene) skyScene.background = new THREE.Color(skyCol);
+    if (skyRenderer) {
+      skyRenderer.setClearColor(skyCol, 1);
+      skyRenderer.setClearAlpha(1);
+    }
+    if (skyGroundMat) skyGroundMat.color.setHex(groundCol);
+  } catch (e) { console.warn('theme sky', e); }
+
+  // Redraw sky stars with day/night colours (only if data loaded)
+  try {
+    if (typeof updateSimulation === 'function' && maxTime > minTime) updateSimulation();
+  } catch (e) { console.warn('theme sim', e); }
+}
+
+function applyTheme(mode){
+  document.documentElement.setAttribute('data-theme', mode);
+  const btn = document.getElementById('btn-theme');
+  if (btn) {
+    btn.textContent = mode === 'dark' ? '☀' : '☾';
+    btn.title = mode === 'dark' ? 'Switch to day theme' : 'Switch to night theme';
+  }
+  applyThemeVisuals();
+}
+
+/* ---- Persist IOD/TLE, station, settings (localStorage + cookies) ---- */
+const STORE_KEY = 'iod-tracker-state-v1';
+const COOKIE_DAYS = 365;
+
+function setCookie(name, value, days){
+  try {
+    const max = 3500; // stay under typical cookie size limits
+    let v = String(value);
+    if (v.length > max) v = v.slice(0, max);
+    const exp = new Date(Date.now() + (days || COOKIE_DAYS) * 864e5).toUTCString();
+    document.cookie = name + '=' + encodeURIComponent(v) + ';expires=' + exp + ';path=/;SameSite=Lax';
+  } catch (e) {}
+}
+function getCookie(name){
+  try {
+    const m = document.cookie.match(new RegExp('(?:^|; )' + name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '=([^;]*)'));
+    return m ? decodeURIComponent(m[1]) : null;
+  } catch (e) { return null; }
+}
+
+function collectAppState(){
+  return {
+    iodText: document.getElementById('iod-input')?.value ?? '',
+    stations: (typeof stationList !== 'undefined' && stationList.length)
+      ? stationList.map(s => ({ id: s.id, lat: s.lat, lon: s.lon, alt: s.alt }))
+      : [{ id: '9999', lat: 0, lon: 0, alt: 0 }],
+    defaultStationId: (typeof defaultStationId !== 'undefined') ? defaultStationId : '9999',
+    satAlt: document.getElementById('sat-alt')?.value ?? '500',
+    satSize: document.getElementById('sat-size-slider')?.value ?? '0.35',
+    magLimit: document.getElementById('mag-slider')?.value ?? '4',
+    speed: document.getElementById('speed')?.value ?? '1',
+    togSatLabels: !!document.getElementById('tog-sat-labels')?.checked,
+    togConst: !!document.getElementById('tog-const')?.checked,
+    togBodies: !!document.getElementById('tog-bodies')?.checked,
+    togAlt: !!document.getElementById('tog-alt')?.checked,
+    theme: getThemeMode()
+  };
+}
+
+function saveAppState(){
+  const state = collectAppState();
+  try {
+    localStorage.setItem(STORE_KEY, JSON.stringify(state));
+  } catch (e) { console.warn('localStorage save failed', e); }
+  // Cookies for default station + settings (IOD text may be too large)
+  const def = (state.stations || []).find(s => s.id === state.defaultStationId) || (state.stations || [])[0];
+  if (def) {
+    setCookie('iod_obs_lat', def.lat);
+    setCookie('iod_obs_lon', def.lon);
+    setCookie('iod_obs_alt', def.alt);
+    setCookie('iod_st_id', def.id);
+  }
+  setCookie('iod_sat_alt', state.satAlt);
+  setCookie('iod_sat_size', state.satSize);
+  setCookie('iod_mag', state.magLimit);
+  setCookie('iod_speed', state.speed);
+  setCookie('iod_theme', state.theme);
+  setCookie('iod_tog', [state.togSatLabels, state.togConst, state.togBodies, state.togAlt].map(x => x ? '1' : '0').join(''));
+  if (state.iodText.length <= 3000) setCookie('iod_text', state.iodText);
+  try {
+    setCookie('iod_stations', JSON.stringify(state.stations).slice(0, 3500));
+  } catch (e) {}
+}
+
+function loadAppState(){
+  let state = null;
+  try {
+    const raw = localStorage.getItem(STORE_KEY);
+    if (raw) state = JSON.parse(raw);
+  } catch (e) {}
+  // Fallback from cookies if no localStorage
+  if (!state) {
+    const lat = getCookie('iod_obs_lat');
+    if (lat != null || getCookie('iod_text') || getCookie('iod_stations')) {
+      state = {
+        satAlt: getCookie('iod_sat_alt') || '500',
+        satSize: getCookie('iod_sat_size') || '0.35',
+        magLimit: getCookie('iod_mag') || '4',
+        speed: getCookie('iod_speed') || '1',
+        theme: getCookie('iod_theme') || null,
+        iodText: getCookie('iod_text') || null,
+        defaultStationId: getCookie('iod_st_id') || '9999',
+        stations: null,
+        togSatLabels: true, togConst: true, togBodies: true, togAlt: true
+      };
+      try {
+        const sj = getCookie('iod_stations');
+        if (sj) state.stations = JSON.parse(sj);
+      } catch (e) {}
+      if (!state.stations) {
+        state.stations = [{
+          id: getCookie('iod_st_id') || '9999',
+          lat: parseFloat(getCookie('iod_obs_lat') || '0') || 0,
+          lon: parseFloat(getCookie('iod_obs_lon') || '0') || 0,
+          alt: parseFloat(getCookie('iod_obs_alt') || '0') || 0
+        }];
+      }
+      const tog = getCookie('iod_tog');
+      if (tog && tog.length >= 4) {
+        state.togSatLabels = tog[0] === '1';
+        state.togConst = tog[1] === '1';
+        state.togBodies = tog[2] === '1';
+        state.togAlt = tog[3] === '1';
+      }
+    }
+  }
+  if (!state) return false;
+
+  const setVal = (id, v) => {
+    const el = document.getElementById(id);
+    if (el && v != null && v !== '') el.value = v;
+  };
+  if (state.iodText != null && state.iodText !== '') setVal('iod-input', state.iodText);
+  setVal('sat-alt', state.satAlt);
+  setVal('sat-size-slider', state.satSize);
+  setVal('mag-slider', state.magLimit);
+  setVal('speed', state.speed);
+  const magLabel = document.getElementById('mag-label');
+  if (magLabel && state.magLimit != null) magLabel.textContent = (+state.magLimit).toFixed(1);
+
+  // Stations
+  if (Array.isArray(state.stations) && state.stations.length) {
+    stationList = state.stations.map(s => ({
+      id: String(s.id),
+      lat: parseFloat(s.lat) || 0,
+      lon: parseFloat(s.lon) || 0,
+      alt: parseFloat(s.alt) || 0
+    }));
+    defaultStationId = String(state.defaultStationId || stationList[0].id);
+    if (!stationList.find(s => s.id === defaultStationId)) defaultStationId = stationList[0].id;
+  } else if (state.obsLat != null) {
+    // Legacy single-station save
+    stationList = [{
+      id: '9999',
+      lat: parseFloat(state.obsLat) || 0,
+      lon: parseFloat(state.obsLon) || 0,
+      alt: parseFloat(state.obsAlt) || 0
+    }];
+    defaultStationId = '9999';
+  }
+  applyDefaultStationToObserver();
+  if (typeof renderStationList === 'function') renderStationList();
+
+  const setChk = (id, v) => {
+    const el = document.getElementById(id);
+    if (el && typeof v === 'boolean') el.checked = v;
+  };
+  setChk('tog-sat-labels', state.togSatLabels);
+  setChk('tog-const', state.togConst);
+  setChk('tog-bodies', state.togBodies);
+  setChk('tog-alt', state.togAlt);
+
+  if (state.theme === 'light' || state.theme === 'dark') {
+    document.documentElement.setAttribute('data-theme', state.theme);
+  }
+  if (typeof showSatLabels !== 'undefined') {
+    showSatLabels = !!document.getElementById('tog-sat-labels')?.checked;
+    showConst = !!document.getElementById('tog-const')?.checked;
+    showBodies = !!document.getElementById('tog-bodies')?.checked;
+    showAlt = !!document.getElementById('tog-alt')?.checked;
+    satSize = parseFloat(document.getElementById('sat-size-slider')?.value) || 0.35;
+    magLimit = parseFloat(document.getElementById('mag-slider')?.value) || 4;
+  }
+  return true;
+}
+
+let _saveTimer = null;
+function scheduleSaveAppState(){
+  clearTimeout(_saveTimer);
+  _saveTimer = setTimeout(saveAppState, 300);
+}
+
+(function initTheme(){
   function systemTheme(){
     return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
   }
-  function applyTheme(mode){
-    root.setAttribute('data-theme', mode);
-    if (btn) {
-      btn.textContent = mode === 'dark' ? '☀' : '☾';
-      btn.title = mode === 'dark' ? 'Switch to day theme' : 'Switch to night theme';
-    }
-  }
-  // Saved preference, else follow OS
-  let mode = localStorage.getItem('iod-theme');
+  // Prefer saved state theme, then iod-theme key, then OS
+  let mode = null;
+  try {
+    const st = JSON.parse(localStorage.getItem(STORE_KEY) || 'null');
+    if (st && (st.theme === 'light' || st.theme === 'dark')) mode = st.theme;
+  } catch (e) {}
+  if (!mode) mode = localStorage.getItem('iod-theme') || getCookie('iod_theme');
   if (mode !== 'light' && mode !== 'dark') mode = systemTheme();
-  applyTheme(mode);
-
+  document.documentElement.setAttribute('data-theme', mode);
+  const btn = document.getElementById('btn-theme');
   if (btn) {
+    btn.textContent = mode === 'dark' ? '☀' : '☾';
+    btn.title = mode === 'dark' ? 'Switch to day theme' : 'Switch to night theme';
     btn.addEventListener('click', () => {
-      const next = (root.getAttribute('data-theme') === 'dark') ? 'light' : 'dark';
+      const next = getThemeMode() === 'dark' ? 'light' : 'dark';
       localStorage.setItem('iod-theme', next);
       applyTheme(next);
+      scheduleSaveAppState();
     });
   }
-  // Follow OS only if user has never toggled manually
   window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', e => {
-    if (!localStorage.getItem('iod-theme')) applyTheme(e.matches ? 'dark' : 'light');
+    if (!localStorage.getItem('iod-theme') && !getCookie('iod_theme')) applyTheme(e.matches ? 'dark' : 'light');
   });
 })();
 
@@ -381,36 +762,93 @@
    Math
    ============================================================ */
 const RE=6371.0, MU=398600.4418, DEG=Math.PI/180, RAD=180/Math.PI;
+const WGS84_A = 6378.137, WGS84_F = 1 / 298.257223563, WGS84_E2 = WGS84_F * (2 - WGS84_F);
 
 function dateToJD(d){return d.getTime()/86400000+2440587.5}
+/** Greenwich Mean Sidereal Time [deg] — Vallado / consistent with SGP4 gstime */
 function gmst(jd){
+  if (typeof SGP4 !== 'undefined' && SGP4.gstime) {
+    return ((SGP4.gstime(jd) * RAD) % 360 + 360) % 360;
+  }
   const T=(jd-2451545.0)/36525;
   let st=280.46061837+360.98564736629*(jd-2451545.0)+0.000387933*T*T-T*T*T/38710000;
   return ((st%360)+360)%360;
 }
 function geodeticToECEF(lat,lon,alt_m){
-  const a=6378.137,f=1/298.257223563,e2=f*(2-f);
+  const a=WGS84_A,e2=WGS84_E2;
   const latR=lat*DEG,lonR=lon*DEG,sinLat=Math.sin(latR),cosLat=Math.cos(latR);
   const N=a/Math.sqrt(1-e2*sinLat*sinLat),h=alt_m/1000;
   return {x:(N+h)*cosLat*Math.cos(lonR),y:(N+h)*cosLat*Math.sin(lonR),z:(N*(1-e2)+h)*sinLat};
 }
+/** RA/Dec (deg, equatorial) → unit vector in ECEF using GMST at observation epoch */
 function raDecToECEFUnit(ra,dec,gmstDeg){
   const raR=ra*DEG,decR=dec*DEG,cosDec=Math.cos(decR);
+  // Equatorial inertial (mean equator / equinox of date approximation)
   const xi=cosDec*Math.cos(raR),yi=cosDec*Math.sin(raR),zi=Math.sin(decR);
   const g=gmstDeg*DEG,cosG=Math.cos(g),sinG=Math.sin(g);
+  // Rotate by GMST about Z → ECEF
   return {x:xi*cosG+yi*sinG,y:-xi*sinG+yi*cosG,z:zi};
 }
+/** Ray from observer through unit dir → first intersection with sphere radius R (km) */
 function raySphereIntersect(obs,dir,R){
-  const b=2*(obs.x*dir.x+obs.y*dir.y+obs.z*dir.z);
-  const c=obs.x*obs.x+obs.y*obs.y+obs.z*obs.z-R*R;
-  const disc=b*b-4*c; if(disc<0) return null;
-  const t1=(-b-Math.sqrt(disc))/2,t2=(-b+Math.sqrt(disc))/2;
-  const t=t1>0.05?t1:(t2>0.05?t2:null); if(t===null) return null;
-  return {x:obs.x+t*dir.x,y:obs.y+t*dir.y,z:obs.z+t*dir.z};
+  // Normalize direction for stable range
+  const dn = vNorm(dir);
+  if (dn < 1e-14) return null;
+  const ux = dir.x / dn, uy = dir.y / dn, uz = dir.z / dn;
+  const b = 2 * (obs.x * ux + obs.y * uy + obs.z * uz);
+  const c = obs.x * obs.x + obs.y * obs.y + obs.z * obs.z - R * R;
+  const disc = b * b - 4 * c;
+  if (disc < 0) return null;
+  const s = Math.sqrt(disc);
+  const t1 = (-b - s) / 2, t2 = (-b + s) / 2;
+  // Closest positive intersection (satellite along line of sight)
+  let t = null;
+  if (t1 > 0.05) t = t1;
+  else if (t2 > 0.05) t = t2;
+  if (t === null) return null;
+  return { x: obs.x + t * ux, y: obs.y + t * uy, z: obs.z + t * uz };
 }
+/** ECEF → geodetic lat/lon (WGS84) and geocentric radius */
 function ecefToLatLon(p){
-  const r=Math.sqrt(p.x*p.x+p.y*p.y+p.z*p.z);
-  return {lat:Math.asin(p.z/r)*RAD,lon:Math.atan2(p.y,p.x)*RAD,r};
+  const x = p.x, y = p.y, z = p.z;
+  const lon = Math.atan2(y, x) * RAD;
+  const pxy = Math.sqrt(x * x + y * y);
+  const r = Math.sqrt(x * x + y * y + z * z);
+  // Bowring iterative geodetic latitude
+  let lat = Math.atan2(z, pxy * (1 - WGS84_E2));
+  for (let i = 0; i < 6; i++) {
+    const sinLat = Math.sin(lat);
+    const N = WGS84_A / Math.sqrt(1 - WGS84_E2 * sinLat * sinLat);
+    lat = Math.atan2(z + WGS84_E2 * N * sinLat, pxy);
+  }
+  return { lat: lat * RAD, lon, r };
+}
+/** Spherical linear interpolation of unit vectors (for RA/Dec between obs) */
+function slerpUnit(a, b, frac){
+  let d = vDot(a, b);
+  d = Math.max(-1, Math.min(1, d));
+  const th = Math.acos(d);
+  if (th < 1e-8) return vUnit(vAdd(a, vScale(vSub(b, a), frac)));
+  const s = Math.sin(th);
+  return vUnit(vAdd(vScale(a, Math.sin((1 - frac) * th) / s), vScale(b, Math.sin(frac * th) / s)));
+}
+/** Interpolate RA/Dec (deg) on the sphere */
+function interpRaDec(ra1, dec1, ra2, dec2, frac){
+  const u1 = {
+    x: Math.cos(dec1 * DEG) * Math.cos(ra1 * DEG),
+    y: Math.cos(dec1 * DEG) * Math.sin(ra1 * DEG),
+    z: Math.sin(dec1 * DEG)
+  };
+  const u2 = {
+    x: Math.cos(dec2 * DEG) * Math.cos(ra2 * DEG),
+    y: Math.cos(dec2 * DEG) * Math.sin(ra2 * DEG),
+    z: Math.sin(dec2 * DEG)
+  };
+  const u = slerpUnit(u1, u2, frac);
+  const dec = Math.asin(Math.max(-1, Math.min(1, u.z))) * RAD;
+  let ra = Math.atan2(u.y, u.x) * RAD;
+  if (ra < 0) ra += 360;
+  return { ra, dec };
 }
 function vNorm(v){return Math.sqrt(v.x*v.x+v.y*v.y+v.z*v.z)}
 function vDot(a,b){return a.x*b.x+a.y*b.y+a.z*b.z}
@@ -580,76 +1018,626 @@ function bindStarFileInput(){
 /* ============================================================
    IOD Parser + estimators
    ============================================================ */
-function parseIOD(line){
-  line=line.replace(/\r/g,''); if(line.length<45) return null;
-  const obj=line.substring(0,15).trim();
-  const ymd=line.substring(23,31),hms=line.substring(31,40);
-  if(!/^\d{8}$/.test(ymd)) return null;
-  const year=+ymd.slice(0,4),month=+ymd.slice(4,6),day=+ymd.slice(6,8);
-  let hour=0,min=0,sec=0;
-  if(hms.trim()){hour=+(hms.slice(0,2)||0);min=+(hms.slice(2,4)||0);
-    if(hms.length>=6){sec=+(hms.slice(4,6)||0);if(hms.length>6)sec+=parseFloat('0.'+hms.slice(6));}}
-  const utc=new Date(Date.UTC(year,month-1,day,hour,min,Math.floor(sec),Math.round((sec%1)*1000)));
-  const angFmt=+(line[44]||0);
-  const raaz=line.substring(47,54).trim(),sign=line[54]||'+',decel=line.substring(55,61).trim();
-  let ra=null,dec=null;
-  if(angFmt===1||angFmt===7){
-    const hh=+raaz.slice(0,2),mm=+raaz.slice(2,4),ss=+raaz.slice(4,6);
-    const s=raaz.length>6?+raaz[6]/10:0; ra=(hh+mm/60+(ss+s)/3600)*15;
-  }else if(angFmt===2||angFmt===3){
-    const hh=+raaz.slice(0,2),mm=+raaz.slice(2,4),mmm=raaz.length>4?+raaz.slice(4):0;
-    ra=(hh+(mm+mmm/1000)/60)*15;
+/** Parse classic 2-line TLE (optional name line above). Returns element set or null. */
+/* ---- SGP4 (NORAD / Spacetrack Report #3 style) for operational TLE use ---- */
+const SGP4 = (function(){
+  const twopi = 2 * Math.PI;
+  const deg2rad = Math.PI / 180;
+  const xpdotp = 1440 / (2 * Math.PI); // 229.1831180523293
+  const mu = 398600.5; // km^3/s^2 WGS72
+  const radiusearthkm = 6378.135;
+  const xke = 60.0 / Math.sqrt(radiusearthkm * radiusearthkm * radiusearthkm / mu);
+  const tumin = 1.0 / xke;
+  const j2 = 0.00108262998905;
+  const j3 = -0.00000253215306;
+  const j4 = -0.00000161098761;
+  const j3oj2 = j3 / j2;
+
+  function gstime(jdut1){
+    const tut1 = (jdut1 - 2451545.0) / 36525.0;
+    let temp = -6.2e-6 * tut1 * tut1 * tut1 + 0.093104 * tut1 * tut1 +
+      (876600.0 * 3600 + 8640184.812866) * tut1 + 67310.54841;
+    temp = ((temp * deg2rad / 240.0) % twopi);
+    if (temp < 0) temp += twopi;
+    return temp;
   }
-  if(angFmt===1){const dd=+decel.slice(0,2),mm=+decel.slice(2,4),ss=+decel.slice(4,6);
-    dec=(dd+mm/60+ss/3600)*(sign==='-'?-1:1);}
-  else if(angFmt===2){const dd=+decel.slice(0,2),mm=+decel.slice(2,4),mmf=decel.length>4?+decel.slice(4):0;
-    dec=(dd+(mm+mmf/100)/60)*(sign==='-'?-1:1);}
-  else if(angFmt===3||angFmt===7){const dd=+decel.slice(0,2),dddd=decel.length>2?+decel.slice(2):0;
-    dec=(dd+dddd/Math.pow(10,Math.max(decel.length-2,1)))*(sign==='-'?-1:1);}
-  if(ra===null) return null;
-  return {object:obj,utc,timeMs:utc.getTime(),ra,dec};
+
+  function parseFloatTLE(str){
+    str = String(str).trim();
+    if (!str) return 0;
+    // Assumed decimal for eccentricity field
+    if (/^\d+$/.test(str) && str.length <= 7) return parseFloat('0.' + str);
+    // Scientific notation without E: ±NNNNN±N
+    const m = str.match(/^([+-]?)(\d+)([+-])(\d+)$/);
+    if (m) {
+      const mant = parseFloat((m[1] || '') + '0.' + m[2]);
+      const exp = parseInt(m[3] + m[4], 10);
+      return mant * Math.pow(10, exp);
+    }
+    return parseFloat(str);
+  }
+
+  function sgp4init(satrec){
+    const cosio = Math.cos(satrec.inclo);
+    const sinio = Math.sin(satrec.inclo);
+    satrec.method = 'n';
+    satrec.aycof = 0; satrec.con41 = 0; satrec.cc1 = 0; satrec.cc4 = 0;
+    satrec.cc5 = 0; satrec.d2 = 0; satrec.d3 = 0; satrec.d4 = 0;
+    satrec.delmo = 0; satrec.eta = 0; satrec.argpdot = 0; satrec.omgcof = 0;
+    satrec.sinmao = 0; satrec.t = 0; satrec.t2cof = 0; satrec.t3cof = 0;
+    satrec.t4cof = 0; satrec.t5cof = 0; satrec.x1mth2 = 0; satrec.x7thm1 = 0;
+    satrec.mdot = 0; satrec.nodedot = 0; satrec.xlcof = 0; satrec.xmcof = 0;
+    satrec.nodecf = 0;
+
+    const ss = 78.0 / radiusearthkm + 1.0;
+    const qzms2t = Math.pow((120.0 - 78.0) / radiusearthkm, 4);
+    const x2o3 = 2.0 / 3.0;
+
+    satrec.init = 'y';
+    satrec.t = 0.0;
+
+    // un-kozai
+    const ak = Math.pow(xke / satrec.no, x2o3);
+    let d1 = 0.75 * j2 * (3.0 * cosio * cosio - 1.0) / (Math.pow(1.0 - satrec.ecco * satrec.ecco, 1.5));
+    let del = d1 / (ak * ak);
+    const adel = ak * (1.0 - del * del - del * (1.0 / 3.0 + 134.0 * del * del / 81.0));
+    del = d1 / (adel * adel);
+    satrec.no = satrec.no / (1.0 + del);
+
+    const ao = Math.pow(xke / satrec.no, x2o3);
+    const eccsq = satrec.ecco * satrec.ecco;
+    const pinvsq = 1.0 / (ao * ao * (1.0 - eccsq) * (1.0 - eccsq));
+    const cosi = cosio;
+    const cosio2 = cosi * cosi;
+    satrec.con41 = 3 * cosio2 - 1;
+    const omeosq = 1 - eccsq;
+    const posq = ao * ao * omeosq * omeosq;
+    const rp = ao * (1 - satrec.ecco);
+    satrec.method = 'n';
+
+    // Near-earth
+    const sfour = ss;
+    let qzms24 = qzms2t;
+    let perige = (rp - 1.0) * radiusearthkm;
+    if (perige < 156.0) {
+      let sfour2 = perige - 78.0;
+      if (perige < 98.0) sfour2 = 20.0;
+      qzms24 = Math.pow((120.0 - sfour2) / radiusearthkm, 4);
+      // sfour remains ss for deep-space branch we skip; adjust for near earth
+    }
+    const pinvsq2 = 1.0 / posq;
+    const tsi = 1.0 / (ao - sfour);
+    satrec.eta = ao * satrec.ecco * tsi;
+    const etasq = satrec.eta * satrec.eta;
+    const eeta = satrec.ecco * satrec.eta;
+    const psisq = Math.abs(1.0 - etasq);
+    const coef = qzms24 * Math.pow(tsi, 4);
+    const coef1 = coef / Math.pow(psisq, 3.5);
+    const cc2 = coef1 * satrec.no * (ao * (1.0 + 1.5 * etasq + eeta * (4.0 + etasq)) +
+      0.375 * j2 * tsi / psisq * satrec.con41 * (8.0 + 3.0 * etasq * (8.0 + etasq)));
+    satrec.cc1 = satrec.bstar * cc2;
+    let cc3 = 0.0;
+    if (satrec.ecco > 1.0e-4) {
+      cc3 = -2.0 * coef * tsi * j3oj2 * satrec.no * sinio / satrec.ecco;
+    }
+    satrec.x1mth2 = 1.0 - cosio2;
+    satrec.cc4 = 2.0 * satrec.no * coef1 * ao * omeosq *
+      (satrec.eta * (2.0 + 0.5 * etasq) + satrec.ecco * (0.5 + 2.0 * etasq) -
+        j2 * tsi / (ao * psisq) * (-3.0 * satrec.con41 * (1.0 - 2.0 * eeta + etasq * (1.5 - 0.5 * eeta)) +
+          0.75 * satrec.x1mth2 * (2.0 * etasq - eeta * (1.0 + etasq)) * Math.cos(2.0 * satrec.argpo)));
+    satrec.cc5 = 2.0 * coef1 * ao * omeosq * (1.0 + 2.75 * (etasq + eeta) + eeta * etasq);
+    const cosio4 = cosio2 * cosio2;
+    const temp1 = 1.5 * j2 * pinvsq2 * satrec.no;
+    const temp2 = 0.5 * temp1 * j2 * pinvsq2;
+    const temp3 = -0.46875 * j4 * pinvsq2 * pinvsq2 * satrec.no;
+    satrec.mdot = satrec.no + 0.5 * temp1 * omeosq * satrec.con41 +
+      0.0625 * temp2 * omeosq * (13.0 - 78.0 * cosio2 + 137.0 * cosio4);
+    satrec.argpdot = -0.5 * temp1 * (1.0 - 5.0 * cosio2) + 0.0625 * temp2 *
+      (7.0 - 114.0 * cosio2 + 395.0 * cosio4) + temp3 * (3.0 - 36.0 * cosio2 + 49.0 * cosio4);
+    const xhdot1 = -temp1 * cosi;
+    satrec.nodedot = xhdot1 + (0.5 * temp2 * (4.0 - 19.0 * cosio2) +
+      2.0 * temp3 * (3.0 - 7.0 * cosio2)) * cosi;
+    satrec.omgcof = satrec.bstar * cc3 * Math.cos(satrec.argpo);
+    satrec.xmcof = (satrec.ecco > 1.0e-4) ? (-x2o3 * coef * satrec.bstar / eeta) : 0.0;
+    satrec.nodecf = 3.5 * omeosq * xhdot1 * satrec.cc1;
+    satrec.t2cof = 1.5 * satrec.cc1;
+    satrec.xlcof = (Math.abs(cosi + 1.0) > 1.5e-12)
+      ? (-0.25 * j3oj2 * sinio * (3.0 + 5.0 * cosi) / (1.0 + cosi))
+      : (-0.25 * j3oj2 * sinio * (3.0 + 5.0 * cosi) / 1.5e-12);
+    satrec.aycof = -0.5 * j3oj2 * sinio;
+    satrec.delmo = Math.pow(1.0 + satrec.eta * Math.cos(satrec.mo), 3);
+    satrec.sinmao = Math.sin(satrec.mo);
+    satrec.x7thm1 = 7.0 * cosio2 - 1.0;
+
+    satrec.d2 = 4.0 * ao * tsi * satrec.cc1 * satrec.cc1;
+    const temp = satrec.d2 * tsi * satrec.cc1 / 3.0;
+    satrec.d3 = (17.0 * ao + sfour) * temp;
+    satrec.d4 = 0.5 * temp * ao * tsi * (221.0 * ao + 31.0 * sfour) * satrec.cc1;
+    satrec.t3cof = satrec.d2 + 2.0 * satrec.cc1 * satrec.cc1;
+    satrec.t4cof = 0.25 * (3.0 * satrec.d3 + satrec.cc1 * (12.0 * satrec.d2 + 10.0 * satrec.cc1 * satrec.cc1));
+    satrec.t5cof = 0.2 * (3.0 * satrec.d4 + 12.0 * satrec.cc1 * satrec.d3 +
+      6.0 * satrec.d2 * satrec.d2 + 15.0 * satrec.cc1 * satrec.cc1 * (2.0 * satrec.d2 + satrec.cc1 * satrec.cc1));
+
+    satrec.init = 'n';
+    return true;
+  }
+
+  function sgp4(satrec, tsince){
+    // tsince in minutes from epoch
+    const x2o3 = 2.0 / 3.0;
+    satrec.t = tsince;
+    satrec.error = 0;
+
+    let xmdf = satrec.mo + satrec.mdot * satrec.t;
+    let argpdf = satrec.argpo + satrec.argpdot * satrec.t;
+    let nodedf = satrec.nodeo + satrec.nodedot * satrec.t;
+    let t2 = satrec.t * satrec.t;
+    let nodem = nodedf + satrec.nodecf * t2;
+    let tempa = 1.0 - satrec.cc1 * satrec.t;
+    let tempe = satrec.bstar * satrec.cc4 * satrec.t;
+    let templ = satrec.t2cof * t2;
+
+    if (satrec.method !== 'd') {
+      const delomg = satrec.omgcof * satrec.t;
+      const delmtemp = 1.0 + satrec.eta * Math.cos(xmdf);
+      const delm = satrec.xmcof * (delmtemp * delmtemp * delmtemp - satrec.delmo);
+      const temp = delomg + delm;
+      xmdf = xmdf + temp;
+      argpdf = argpdf - temp;
+      t2 = satrec.t * satrec.t;
+      const t3 = t2 * satrec.t;
+      const t4 = t3 * satrec.t;
+      tempa = tempa - satrec.d2 * t2 - satrec.d3 * t3 - satrec.d4 * t4;
+      tempe = tempe + satrec.bstar * satrec.cc5 * (Math.sin(xmdf) - satrec.sinmao);
+      templ = templ + satrec.t3cof * t3 + t4 * (satrec.t4cof + satrec.t * satrec.t5cof);
+    }
+
+    let nm = satrec.no;
+    let em = satrec.ecco;
+    let inclm = satrec.inclo;
+    let mm = xmdf;
+    let argpm = argpdf;
+    let nodem2 = nodem;
+
+    if (nm <= 0.0) { satrec.error = 2; return null; }
+    const am = Math.pow(xke / nm, x2o3) * tempa * tempa;
+    nm = xke / Math.pow(am, 1.5);
+    em = em - tempe;
+    if (em >= 1.0 || em < -0.001) { satrec.error = 1; return null; }
+    if (em < 1.0e-6) em = 1.0e-6;
+    mm = mm + satrec.no * templ;
+    let xlm = mm + argpm + nodem2;
+    nodem2 = ((nodem2 % twopi) + twopi) % twopi;
+    argpm = ((argpm % twopi) + twopi) % twopi;
+    xlm = ((xlm % twopi) + twopi) % twopi;
+    mm = ((xlm - argpm - nodem2) % twopi + twopi) % twopi;
+
+    const sinim = Math.sin(inclm);
+    const cosim = Math.cos(inclm);
+
+    // Long period periodics
+    const axnl = em * Math.cos(argpm);
+    let temp = 1.0 / (am * (1.0 - em * em));
+    const aynl = em * Math.sin(argpm) + temp * satrec.aycof;
+    const xl = mm + argpm + nodem2 + temp * satrec.xlcof * axnl;
+
+    // Kepler
+    const u = ((xl - nodem2) % twopi + twopi) % twopi;
+    let eo1 = u;
+    let tem5 = 9999.9;
+    let ktr = 1;
+    let sineo1, coseo1;
+    while (Math.abs(tem5) >= 1.0e-12 && ktr <= 10) {
+      sineo1 = Math.sin(eo1);
+      coseo1 = Math.cos(eo1);
+      tem5 = 1.0 - coseo1 * axnl - sineo1 * aynl;
+      tem5 = (u - aynl * coseo1 + axnl * sineo1 - eo1) / tem5;
+      if (Math.abs(tem5) >= 0.95) tem5 = tem5 > 0 ? 0.95 : -0.95;
+      eo1 = eo1 + tem5;
+      ktr = ktr + 1;
+    }
+
+    // Short period
+    const ecose = axnl * coseo1 + aynl * sineo1;
+    const esine = axnl * sineo1 - aynl * coseo1;
+    const el2 = axnl * axnl + aynl * aynl;
+    const pl = am * (1.0 - el2);
+    if (pl < 0.0) { satrec.error = 4; return null; }
+    const rl = am * (1.0 - ecose);
+    const rdotl = Math.sqrt(am) * esine / rl;
+    const rvdotl = Math.sqrt(pl) / rl;
+    const betal = Math.sqrt(1.0 - el2);
+    temp = esine / (1.0 + betal);
+    const sinu = am / rl * (sineo1 - aynl - axnl * temp);
+    const cosu = am / rl * (coseo1 - axnl + aynl * temp);
+    let su = Math.atan2(sinu, cosu);
+    const sin2u = (cosu + cosu) * sinu;
+    const cos2u = 1.0 - 2.0 * sinu * sinu;
+    temp = 1.0 / pl;
+    const temp1 = 0.5 * j2 * temp;
+    const temp2 = temp1 * temp;
+
+    const mrt = rl * (1.0 - 1.5 * temp2 * betal * satrec.con41) + 0.5 * temp1 * satrec.x1mth2 * cos2u;
+    su = su - 0.25 * temp2 * satrec.x7thm1 * sin2u;
+    const xnode = nodem2 + 1.5 * temp2 * cosim * sin2u;
+    const xinc = inclm + 1.5 * temp2 * cosim * sinim * cos2u;
+    const mvt = rdotl - nm * temp1 * satrec.x1mth2 * sin2u / xke;
+    const rvdot = rvdotl + nm * temp1 * (satrec.x1mth2 * cos2u + 1.5 * satrec.con41) / xke;
+
+    // Orientation
+    const sinsu = Math.sin(su);
+    const cossu = Math.cos(su);
+    const snod = Math.sin(xnode);
+    const cnod = Math.cos(xnode);
+    const sini = Math.sin(xinc);
+    const cosi = Math.cos(xinc);
+    const xmx = -snod * cosi;
+    const xmy = cnod * cosi;
+    const ux = xmx * sinsu + cnod * cossu;
+    const uy = xmy * sinsu + snod * cossu;
+    const uz = sini * sinsu;
+
+    // Position km in TEME
+    if (mrt < 1.0) { satrec.error = 6; return null; }
+    const r = radiusearthkm * mrt;
+    return {
+      x: r * ux,
+      y: r * uy,
+      z: r * uz
+    };
+  }
+
+  function twoline2satrec(line1, line2){
+    const L1 = line1.padEnd(69, ' ');
+    const L2 = line2.padEnd(69, ' ');
+    const satrec = {};
+    satrec.satnum = L1.substring(2, 7).trim();
+    let yy = parseInt(L1.substring(18, 20), 10);
+    const epochdays = parseFloat(L1.substring(20, 32));
+    const year = yy < 57 ? 2000 + yy : 1900 + yy;
+    const dayInt = Math.floor(epochdays);
+    const frac = epochdays - dayInt;
+    satrec.epochMs = Date.UTC(year, 0, 1) + (dayInt - 1) * 86400000 + frac * 86400000;
+    satrec.jdsatepoch = satrec.epochMs / 86400000 + 2440587.5;
+
+    satrec.ndot = parseFloatTLE(L1.substring(33, 43)) / (xpdotp * 1440.0);
+    satrec.nddot = parseFloatTLE(L1.substring(44, 52));
+    satrec.bstar = parseFloatTLE(L1.substring(53, 61));
+
+    satrec.inclo = parseFloat(L2.substring(8, 16)) * deg2rad;
+    satrec.nodeo = parseFloat(L2.substring(17, 25)) * deg2rad;
+    satrec.ecco = parseFloat('0.' + L2.substring(26, 33).trim().replace(/[^\d]/g, ''));
+    satrec.argpo = parseFloat(L2.substring(34, 42)) * deg2rad;
+    satrec.mo = parseFloat(L2.substring(43, 51)) * deg2rad;
+    satrec.no = parseFloat(L2.substring(52, 63)) / xpdotp; // rad/min
+
+    if (!(satrec.no > 0) || !isFinite(satrec.ecco)) return null;
+    sgp4init(satrec);
+    return satrec;
+  }
+
+  function propagate(satrec, timeMs){
+    if (!satrec) return null;
+    const tsince = (timeMs - satrec.epochMs) / 60000.0; // minutes
+    const rteme = sgp4(satrec, tsince);
+    if (!rteme) return null;
+    // TEME → ECEF via GMST (sufficient for ground track / daily optical planning)
+    const jd = timeMs / 86400000 + 2440587.5;
+    const theta = gstime(jd);
+    const ct = Math.cos(theta), st = Math.sin(theta);
+    const x = ct * rteme.x + st * rteme.y;
+    const y = -st * rteme.x + ct * rteme.y;
+    const z = rteme.z;
+    return { x, y, z };
+  }
+
+  return { twoline2satrec, propagate, gstime };
+})();
+
+function parseTLE(line1, line2, name){
+  if (!line1 || !line2) return null;
+  const L1 = line1.replace(/\r/g, '').padEnd(69, ' ');
+  const L2 = line2.replace(/\r/g, '').padEnd(69, ' ');
+  if (L1.charAt(0) !== '1' || L2.charAt(0) !== '2') return null;
+  try {
+    const satrec = SGP4.twoline2satrec(L1, L2);
+    if (!satrec) return null;
+    const norad = satrec.satnum;
+    const nRev = satrec.no * (1440 / (2 * Math.PI)); // rev/day
+    const periodMin = 1440 / nRev;
+    const a = Math.pow(398600.5 / Math.pow(satrec.no / 60, 2), 1 / 3); // km from n rad/s
+    return {
+      norad, name: (name || '').trim() || null,
+      epochMs: satrec.epochMs,
+      incl: satrec.inclo * RAD,
+      raan: satrec.nodeo * RAD,
+      ecc: satrec.ecco,
+      argp: satrec.argpo * RAD,
+      M0: satrec.mo * RAD,
+      n: satrec.no / 60, // rad/s
+      a, periodMin, nRev,
+      satrec // SGP4 state
+    };
+  } catch (e) {
+    console.warn('TLE parse failed', e);
+    return null;
+  }
 }
 
-function estimateCircularAltitude(obsList,observer){
-  if(obsList.length<2) return null;
-  const obsECEF=geodeticToECEF(observer.lat,observer.lon,observer.alt);
-  const pairs=[]; for(let i=0;i<obsList.length-1;i++) pairs.push([obsList[i],obsList[i+1]]);
-  if(obsList.length>=3) pairs.push([obsList[0],obsList[obsList.length-1]]);
-  let bestH=null,bestScore=Infinity;
-  const cands=[]; for(let h=200;h<=1200;h+=25) cands.push(h);
-  for(let h=1300;h<=2500;h+=100) cands.push(h); cands.push(35786);
-  for(const h of cands){
-    const R=RE+h; let total=0,valid=0;
-    for(const [o1,o2] of pairs){
-      const dt=(o2.timeMs-o1.timeMs)/1000; if(dt<1||dt>3600) continue;
-      const d1=raDecToECEFUnit(o1.ra,o1.dec,gmst(dateToJD(o1.utc)));
-      const d2=raDecToECEFUnit(o2.ra,o2.dec,gmst(dateToJD(o2.utc)));
-      const p1=raySphereIntersect(obsECEF,d1,R),p2=raySphereIntersect(obsECEF,d2,R);
-      if(!p1||!p2) continue;
-      const cosTh=Math.max(-1,Math.min(1,vDot(p1,p2)/(vNorm(p1)*vNorm(p2))));
-      const theta=Math.acos(cosTh),n=Math.sqrt(MU/(R*R*R)),expected=n*dt;
-      total+=Math.abs(theta-expected)/Math.max(expected,0.001); valid++;
-    }
-    if(valid===0) continue;
-    const avg=total/valid; if(avg<bestScore){bestScore=avg;bestH=h;}
+/** SGP4 propagation → ECEF km at timeMs */
+function propagateTLE(tle, timeMs){
+  if (!tle || !isFinite(timeMs)) return null;
+  let ecef;
+  if (tle.satrec) {
+    ecef = SGP4.propagate(tle.satrec, timeMs);
+  } else {
+    return null;
   }
-  if(bestScore>0.55) return null;
-  return {altitude:bestH,score:bestScore};
+  if (!ecef) return null;
+  const ll = ecefToLatLon(ecef);
+  return { x: ecef.x, y: ecef.y, z: ecef.z, lat: ll.lat, lon: ll.lon };
 }
-function estimateElements(obsList,altKm,observer){
-  if(obsList.length<2) return null;
-  const positions=[];
-  for(const o of obsList){const p=computePosition(o,altKm,observer);if(p) positions.push(p);}
-  if(positions.length<2) return null;
-  const n=vUnit(vCross(positions[0],positions[1]));
-  const incl=Math.acos(Math.max(-1,Math.min(1,Math.abs(n.z))))*RAD;
-  let ecc=null,sma=altKm+RE,periodMin=null;
-  if(positions.length>=3){
-    const r1=positions[0],r2=positions[Math.floor(positions.length/2)],r3=positions[positions.length-1];
-    const v2=gibbs(r1,r2,r3);
-    if(v2){const coe=rv2coe(r2,v2);ecc=coe.e;sma=coe.a;periodMin=coe.period;}
+
+/** Solid TLE track: [firstIOD−5min, lastIOD+5min], else one period about timeMs */
+function sampleTLEOrbit(tle, steps, tStartMs, tEndMs){
+  steps = steps || 180;
+  let t0, t1;
+  if (tStartMs != null && tEndMs != null && isFinite(tStartMs) && isFinite(tEndMs) && tEndMs > tStartMs) {
+    t0 = tStartMs;
+    t1 = tEndMs;
+  } else {
+    const periodMs = tle.periodMin * 60 * 1000;
+    const c = (tStartMs != null && isFinite(tStartMs)) ? tStartMs : tle.epochMs;
+    t0 = c;
+    t1 = c + periodMs;
   }
-  return {inclination:incl,eccentricity:ecc,sma,altitude:sma-RE,periodMin};
+  const pts = [];
+  for (let i = 0; i <= steps; i++) {
+    const t = t0 + (i / steps) * (t1 - t0);
+    const p = propagateTLE(tle, t);
+    if (p) pts.push(p);
+  }
+  return pts;
+}
+
+/** IOD observation window ±5 minutes for solid TLE track */
+function getIODTrackWindow(){
+  if (!observations || !observations.length) return null;
+  const ts = observations.map(o => o.timeMs).filter(isFinite);
+  if (!ts.length) return null;
+  let t0 = Math.min(...ts);
+  let t1 = Math.max(...ts);
+  if (t1 <= t0) t1 = t0 + 5 * 60 * 1000;
+  return { start: t0 - 5 * 60 * 1000, end: t1 + 5 * 60 * 1000 };
+}
+
+/** Rebuild TLE solid track for observation window (or one period if no IOD) */
+function refreshTLEOrbit(sat, timeMs){
+  if (!sat || !sat.tle) return;
+  const win = getIODTrackWindow();
+  let samples;
+  if (win) {
+    samples = sampleTLEOrbit(sat.tle, 200, win.start, win.end);
+  } else {
+    samples = sampleTLEOrbit(sat.tle, 120, timeMs != null ? timeMs : sat.tle.epochMs, null);
+  }
+  sat.orbitPoints = samples.map(p => ({ x: p.x, y: p.y, z: p.z }));
+  sat.groundTrack = samples.map(p => ({ lat: p.lat, lon: p.lon }));
+  sat.groundTrack.color = sat.color;
+  sat.iodTrack = {
+    latlngs: samples.map(p => [p.lat, p.lon]),
+    color: sat.color
+  };
+}
+
+/** ECEF → topocentric Az/El from observer */
+function ecefToAzEl(satECEF, obs){
+  const obsECEF = geodeticToECEF(obs.lat, obs.lon, obs.alt);
+  const dx = satECEF.x - obsECEF.x, dy = satECEF.y - obsECEF.y, dz = satECEF.z - obsECEF.z;
+  const latR = obs.lat * DEG, lonR = obs.lon * DEG;
+  const sinLat = Math.sin(latR), cosLat = Math.cos(latR);
+  const sinLon = Math.sin(lonR), cosLon = Math.cos(lonR);
+  // ENU
+  const east = -sinLon * dx + cosLon * dy;
+  const north = -sinLat * cosLon * dx - sinLat * sinLon * dy + cosLat * dz;
+  const up = cosLat * cosLon * dx + cosLat * sinLon * dy + sinLat * dz;
+  const az = (Math.atan2(east, north) * RAD + 360) % 360;
+  const el = Math.atan2(up, Math.sqrt(east * east + north * north)) * RAD;
+  return { az, el };
+}
+
+function parseIOD(line){
+  // Keep leading spaces for fixed-column IOD; only strip CR and trailing space
+  line = String(line || '').replace(/\r/g, '').replace(/\s+$/, '');
+  if (line.length < 45) return null;
+  const trimmed = line.trim();
+  // Skip TLE lines
+  if (/^1\s/.test(trimmed) || /^2\s/.test(trimmed)) return null;
+
+  // NORAD / object id = first column only
+  const firstCol = (trimmed.split(/\s+/)[0] || '').trim();
+  const obj = (firstCol.match(/\d+/) || [firstCol])[0];
+  if (!obj) return null;
+
+  // Date/time: prefer fixed columns 24–40 (0-based 23–40), else regex fallback
+  let ymd = line.substring(23, 31);
+  let hms = line.substring(31, 40);
+  if (!/^\d{8}$/.test(ymd)) {
+    const m = trimmed.match(/(20\d{6}|19\d{6})(\d{6,9})/);
+    if (!m) return null;
+    ymd = m[1];
+    hms = m[2];
+  }
+  const year = +ymd.slice(0, 4), month = +ymd.slice(4, 6), day = +ymd.slice(6, 8);
+  let hour = 0, min = 0, sec = 0;
+  if (hms.trim()) {
+    hour = +(hms.slice(0, 2) || 0);
+    min = +(hms.slice(2, 4) || 0);
+    if (hms.length >= 6) {
+      sec = +(hms.slice(4, 6) || 0);
+      if (hms.length > 6) sec += parseFloat('0.' + hms.slice(6));
+    }
+  }
+  const utc = new Date(Date.UTC(year, month - 1, day, hour, min, Math.floor(sec), Math.round((sec % 1) * 1000)));
+  if (isNaN(utc.getTime())) return null;
+
+  // Angle format code (column 45 → index 44); default to 2 if missing
+  let angFmt = +(line[44] || trimmed[44] || 2);
+  if (![1, 2, 3, 7].includes(angFmt)) angFmt = 2;
+
+  let raaz = line.substring(47, 54).trim();
+  let sign = line[54] || '+';
+  let decel = line.substring(55, 61).trim();
+  // Fallback: find "DDDDDDD±DDDDDD" pattern near end
+  if (!raaz || raaz.length < 4) {
+    const am = trimmed.match(/(\d{6,7})\s*([+-])\s*(\d{5,7})/);
+    if (am) { raaz = am[1]; sign = am[2]; decel = am[3]; }
+  }
+
+  let ra = null, dec = null;
+  if (angFmt === 1 || angFmt === 7) {
+    const hh = +raaz.slice(0, 2), mm = +raaz.slice(2, 4), ss = +raaz.slice(4, 6);
+    const s = raaz.length > 6 ? +raaz[6] / 10 : 0;
+    ra = (hh + mm / 60 + (ss + s) / 3600) * 15;
+  } else if (angFmt === 2 || angFmt === 3) {
+    const hh = +raaz.slice(0, 2), mm = +raaz.slice(2, 4);
+    const mmm = raaz.length > 4 ? +raaz.slice(4) : 0;
+    ra = (hh + (mm + mmm / 1000) / 60) * 15;
+  }
+  if (angFmt === 1) {
+    const dd = +decel.slice(0, 2), mm = +decel.slice(2, 4), ss = +decel.slice(4, 6);
+    dec = (dd + mm / 60 + ss / 3600) * (sign === '-' ? -1 : 1);
+  } else if (angFmt === 2) {
+    const dd = +decel.slice(0, 2), mm = +decel.slice(2, 4);
+    const mmf = decel.length > 4 ? +decel.slice(4) : 0;
+    dec = (dd + (mm + mmf / 100) / 60) * (sign === '-' ? -1 : 1);
+  } else if (angFmt === 3 || angFmt === 7) {
+    const dd = +decel.slice(0, 2);
+    const dddd = decel.length > 2 ? +decel.slice(2) : 0;
+    dec = (dd + dddd / Math.pow(10, Math.max(decel.length - 2, 1))) * (sign === '-' ? -1 : 1);
+  }
+  if (ra === null || !isFinite(ra) || dec === null || !isFinite(dec)) return null;
+  return { object: String(obj), utc, timeMs: utc.getTime(), ra, dec };
+}
+
+/** Score circular altitude h (km) against successive IOD pairs (angular rate match) */
+function scoreAltitude(h, obsList, obsECEF){
+  const R = RE + h;
+  let total = 0, valid = 0;
+  for (let i = 0; i < obsList.length - 1; i++) {
+    const o1 = obsList[i], o2 = obsList[i + 1];
+    const dt = (o2.timeMs - o1.timeMs) / 1000;
+    if (dt < 0.5 || dt > 7200) continue;
+    const d1 = raDecToECEFUnit(o1.ra, o1.dec, gmst(dateToJD(o1.utc)));
+    const d2 = raDecToECEFUnit(o2.ra, o2.dec, gmst(dateToJD(o2.utc)));
+    const p1 = raySphereIntersect(obsECEF, d1, R);
+    const p2 = raySphereIntersect(obsECEF, d2, R);
+    if (!p1 || !p2) continue;
+    const cosTh = Math.max(-1, Math.min(1, vDot(p1, p2) / (vNorm(p1) * vNorm(p2))));
+    const theta = Math.acos(cosTh);
+    const n = Math.sqrt(MU / (R * R * R));
+    const expected = n * dt;
+    // Prefer relative angular error; also soft-penalize range mismatch vs circular speed
+    total += Math.abs(theta - expected) / Math.max(expected, 1e-4);
+    valid++;
+  }
+  if (valid === 0) return Infinity;
+  return total / valid;
+}
+function estimateCircularAltitude(obsList, observer){
+  if (obsList.length < 2) return null;
+  const obsECEF = geodeticToECEF(observer.lat, observer.lon, observer.alt);
+  // Coarse grid then refine around best
+  let bestH = null, bestScore = Infinity;
+  const cands = [];
+  for (let h = 150; h <= 1500; h += 10) cands.push(h);
+  for (let h = 1600; h <= 4000; h += 50) cands.push(h);
+  cands.push(35786);
+  for (const h of cands) {
+    const avg = scoreAltitude(h, obsList, obsECEF);
+    if (avg < bestScore) { bestScore = avg; bestH = h; }
+  }
+  if (bestH == null || bestScore > 0.65) return null;
+  // Local refinement ±15 km at 1 km steps
+  let refineBest = bestH, refineScore = bestScore;
+  for (let h = bestH - 15; h <= bestH + 15; h += 1) {
+    if (h < 120) continue;
+    const avg = scoreAltitude(h, obsList, obsECEF);
+    if (avg < refineScore) { refineScore = avg; refineBest = h; }
+  }
+  return { altitude: refineBest, score: refineScore };
+}
+/**
+ * Orbital elements from optical IOD only.
+ * Positions use the optical altitude estimate (never TLE height), so
+ * inclination stays fixed when a matching TLE is toggled.
+ */
+function estimateElements(obsList, altKm, observer){
+  if (obsList.length < 2) return null;
+  const positions = [];
+  for (const o of obsList) {
+    const p = computePosition(o, altKm, observer);
+    if (p) positions.push({ ...p, timeMs: o.timeMs });
+  }
+  if (positions.length < 2) return null;
+
+  // Inclination from average orbit-plane normal of consecutive geocentric positions
+  let nx = 0, ny = 0, nz = 0, nCount = 0;
+  let ref = null;
+  for (let i = 0; i < positions.length - 1; i++) {
+    const c = vCross(positions[i], positions[i + 1]);
+    const cn = vNorm(c);
+    if (cn < 1e-12) continue;
+    let ux = c.x / cn, uy = c.y / cn, uz = c.z / cn;
+    if (ref == null) ref = { x: ux, y: uy, z: uz };
+    else if (ux * ref.x + uy * ref.y + uz * ref.z < 0) {
+      ux = -ux; uy = -uy; uz = -uz;
+    }
+    nx += ux; ny += uy; nz += uz;
+    nCount++;
+  }
+  if (nCount === 0) {
+    const c = vCross(positions[0], positions[positions.length - 1]);
+    nx = c.x; ny = c.y; nz = c.z;
+    nCount = 1;
+  }
+  const nPlane = vUnit({ x: nx / nCount, y: ny / nCount, z: nz / nCount });
+  // i = angle between plane normal and Earth axis (Z)
+  const incl = Math.acos(Math.max(-1, Math.min(1, Math.abs(nPlane.z)))) * RAD;
+
+  let ecc = null, sma = altKm + RE, periodMin = null;
+  if (positions.length >= 3) {
+    const i1 = 0;
+    const i2 = Math.floor(positions.length / 2);
+    const i3 = positions.length - 1;
+    const v2 = gibbs(positions[i1], positions[i2], positions[i3]);
+    if (v2) {
+      const coe = rv2coe(positions[i2], v2);
+      ecc = coe.e; sma = coe.a; periodMin = coe.period;
+    }
+  }
+  if (periodMin == null && positions.length >= 2) {
+    const p1 = positions[0], p2 = positions[positions.length - 1];
+    const dt = (p2.timeMs - p1.timeMs) / 1000;
+    if (dt > 1) {
+      const cosTh = Math.max(-1, Math.min(1, vDot(p1, p2) / (vNorm(p1) * vNorm(p2))));
+      const theta = Math.acos(cosTh);
+      if (theta > 1e-4) {
+        const nRate = theta / dt;
+        const a = Math.pow(MU / (nRate * nRate), 1 / 3);
+        periodMin = 2 * Math.PI * Math.sqrt(a * a * a / MU) / 60;
+        sma = a;
+      }
+    }
+  }
+  return {
+    inclination: incl,
+    eccentricity: ecc,
+    sma,
+    altitude: sma - RE,
+    periodMin,
+    planeNormal: nPlane
+  };
 }
 function generateOrbitPoints(p1,p2,R,num=180){
   const n=vUnit(vCross(p1,p2));
@@ -663,15 +1651,247 @@ function generateOrbitPoints(p1,p2,R,num=180){
   return pts;
 }
 
+/** Elliptical orbit in the plane of p1–p2 (IOD plane), with semi-major a [km] and eccentricity e */
+function generateEllipticalOrbitPoints(p1, p2, a, e, num){
+  num = num || 200;
+  e = Math.max(0, Math.min(0.99, e || 0));
+  if (!(a > RE) || e < 1e-6) {
+    return generateOrbitPoints(p1, p2, a * (1 - e * e) / Math.max(1e-6, 1 - e), num); // near-circular fallback
+  }
+  const n = vUnit(vCross(p1, p2));
+  const xAxis = vUnit(p1); // periapsis reference in plane (approx)
+  const yAxis = vUnit(vCross(n, xAxis));
+  const pts = [];
+  for (let i = 0; i <= num; i++) {
+    const M = (i / num) * 2 * Math.PI;
+    let E = M;
+    for (let k = 0; k < 12; k++) {
+      const dE = (E - e * Math.sin(E) - M) / (1 - e * Math.cos(E));
+      E -= dE;
+      if (Math.abs(dE) < 1e-12) break;
+    }
+    const cosE = Math.cos(E), sinE = Math.sin(E);
+    const r = a * (1 - e * cosE);
+    const cosNu = (cosE - e) / (1 - e * cosE);
+    const sinNu = (Math.sqrt(Math.max(0, 1 - e * e)) * sinE) / (1 - e * cosE);
+    pts.push(vAdd(vScale(xAxis, r * cosNu), vScale(yAxis, r * sinNu)));
+  }
+  return pts;
+}
+
 /* ============================================================
    State
    ============================================================ */
 let observations=[],satellites={};
 let simTime=0,minTime=0,maxTime=0,playing=false,lastFrame=performance.now();
-let observer={lat:0,lon:0,alt:0},fallbackAlt=500;
-let satSize=0.5; // smallest by default
-let showBodies=true, showAlt=true, showConst=true;
+let observer={lat:0,lon:0,alt:0,id:'9999'},fallbackAlt=500;
+/** Observation stations — default reference id 9999 at (0,0,0) */
+let stationList = [{ id: '9999', lat: 0, lon: 0, alt: 0 }];
+let defaultStationId = '9999';
+
+function getDefaultStation(){
+  return stationList.find(s => s.id === defaultStationId) || stationList[0] || { id: '9999', lat: 0, lon: 0, alt: 0 };
+}
+function applyDefaultStationToObserver(){
+  const s = getDefaultStation();
+  observer.id = s.id;
+  observer.lat = s.lat;
+  observer.lon = s.lon;
+  observer.alt = s.alt;
+}
+function renderStationList(){
+  const box = document.getElementById('station-list');
+  if (!box) return;
+  box.innerHTML = '';
+  stationList.forEach(s => {
+    const row = document.createElement('div');
+    row.className = 'station-row' + (s.id === defaultStationId ? ' is-default' : '');
+    row.innerHTML =
+      '<span class="sid">' + s.id + '</span>' +
+      '<span style="color:var(--muted)">' + s.lat + ', ' + s.lon + ' · ' + s.alt + ' m</span>' +
+      (s.id === defaultStationId ? ' <span style="color:var(--accent);font-size:.68rem">default</span>' : '');
+    const btnDef = document.createElement('button');
+    btnDef.type = 'button';
+    btnDef.textContent = s.id === defaultStationId ? 'Default' : 'Set default';
+    btnDef.disabled = s.id === defaultStationId;
+    btnDef.addEventListener('click', () => {
+      defaultStationId = s.id;
+      applyDefaultStationToObserver();
+      renderStationList();
+      scheduleSaveAppState();
+      loadObservations();
+    });
+    const btnEdit = document.createElement('button');
+    btnEdit.type = 'button';
+    btnEdit.textContent = 'Edit';
+    btnEdit.addEventListener('click', () => {
+      document.getElementById('st-id').value = s.id;
+      document.getElementById('st-lat').value = s.lat;
+      document.getElementById('st-lon').value = s.lon;
+      document.getElementById('st-alt').value = s.alt;
+    });
+    const btnDel = document.createElement('button');
+    btnDel.type = 'button';
+    btnDel.textContent = 'Remove';
+    btnDel.addEventListener('click', () => {
+      if (stationList.length <= 1) {
+        alert('Keep at least one station.');
+        return;
+      }
+      if (!confirm('Remove station ' + s.id + '?')) return;
+      stationList = stationList.filter(x => x.id !== s.id);
+      if (defaultStationId === s.id) defaultStationId = stationList[0].id;
+      applyDefaultStationToObserver();
+      renderStationList();
+      scheduleSaveAppState();
+      loadObservations();
+    });
+    row.appendChild(btnDef);
+    row.appendChild(btnEdit);
+    row.appendChild(btnDel);
+    box.appendChild(row);
+  });
+}
+function addOrUpdateStation(){
+  const id = String(document.getElementById('st-id').value || '').trim();
+  const lat = parseFloat(document.getElementById('st-lat').value);
+  const lon = parseFloat(document.getElementById('st-lon').value);
+  const alt = parseFloat(document.getElementById('st-alt').value);
+  if (!id) { alert('Station ID is required.'); return; }
+  if (!isFinite(lat) || !isFinite(lon) || !isFinite(alt)) {
+    alert('Lat, Lon, and Alt must be numbers.');
+    return;
+  }
+  const existing = stationList.find(s => s.id === id);
+  if (existing) {
+    existing.lat = lat; existing.lon = lon; existing.alt = alt;
+  } else {
+    stationList.push({ id, lat, lon, alt });
+  }
+  applyDefaultStationToObserver();
+  renderStationList();
+  scheduleSaveAppState();
+  loadObservations();
+}
+function clearAllAppData(){
+  const ok = confirm(
+    'Reset all app data to defaults?\n\n' +
+    'This will clear:\n' +
+    '• IOD / TLE text\n' +
+    '• Observation stations\n' +
+    '• Settings (theme, size, toggles, …)\n\n' +
+    'Continue?'
+  );
+  if (!ok) return;
+  try { localStorage.removeItem(STORE_KEY); } catch (e) {}
+  try { localStorage.removeItem('iod-theme'); } catch (e) {}
+  // Expire cookies
+  ['iod_obs_lat','iod_obs_lon','iod_obs_alt','iod_st_id','iod_sat_alt','iod_sat_size',
+   'iod_mag','iod_speed','iod_theme','iod_tog','iod_text','iod_stations'].forEach(n => {
+    document.cookie = n + '=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/;SameSite=Lax';
+  });
+  // Defaults
+  stationList = [{ id: '9999', lat: 0, lon: 0, alt: 0 }];
+  defaultStationId = '9999';
+  applyDefaultStationToObserver();
+  document.getElementById('iod-input').value =
+    '69786 26 151Z   9999 G 20260916210304804 17 25 0254379-070853 37 S';
+  document.getElementById('sat-alt').value = '500';
+  document.getElementById('sat-size-slider').value = '0.35';
+  document.getElementById('mag-slider').value = '4';
+  document.getElementById('mag-label').textContent = '4.0';
+  document.getElementById('speed').value = '1';
+  document.getElementById('st-id').value = '9999';
+  document.getElementById('st-lat').value = '0';
+  document.getElementById('st-lon').value = '0';
+  document.getElementById('st-alt').value = '0';
+  ['tog-sat-labels','tog-const','tog-bodies','tog-alt'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.checked = true;
+  });
+  showSatLabels = true; showConst = true; showBodies = true; showAlt = true;
+  satSize = 0.35; magLimit = 4;
+  applyTheme('dark');
+  renderStationList();
+  loadObservations();
+  scheduleSaveAppState();
+  const st = document.getElementById('status');
+  if (st) st.textContent = 'Reset to defaults';
+}
+let satSize=0.35;
+let showBodies=true, showAlt=true, showConst=true, showSatLabels=true;
 let magLimit = 4.0; // show stars with mag < magLimit (slider; independent of zoom)
+let hoveredSatId = null; // temporary label on hover/click when labels are off
+
+/* NORAD name catalog from bulk.tle (name → NORAD) */
+let SAT_NAMES = {}; // key: "03889" (5-digit) → display name
+
+function normalizeNorad(id){
+  const n = parseInt(String(id).replace(/\D/g,''), 10);
+  if (isNaN(n)) return String(id).trim();
+  return String(n).padStart(5, '0'); // internal key for bulk.tle lookup
+}
+/** NORAD for display: keep leading zeros if present (03889 stays 03889) */
+function formatNoradDisplay(id){
+  const s = String(id).trim();
+  const digits = (s.match(/\d+/) || [s])[0];
+  return digits; // do not strip leading zeros
+}
+/** Satellite name only: strip leading zeros/spaces ("0 abc" → "abc") */
+function cleanSatName(name){
+  return String(name || '')
+    .replace(/^[\s0]+/, '')
+    .trim();
+}
+function satDisplayLabel(objectId){
+  const key = normalizeNorad(objectId);
+  const norad = formatNoradDisplay(objectId);
+  const name = cleanSatName(SAT_NAMES[key] || '');
+  if (name) return name + ' · ' + norad;
+  return norad;
+}
+function parseBulkTLE(text){
+  const map = {};
+  const lines = text.split(/\r?\n/).map(l => l.trim()).filter(l => l.length);
+  let pendingName = null;
+  for (const line of lines) {
+    if (line.startsWith('1 ') && line.length >= 7) {
+      const norad = line.substring(2, 7).trim().padStart(5, '0');
+      if (pendingName) map[norad] = pendingName;
+      else map[norad] = norad;
+      pendingName = null;
+    } else if (line.startsWith('2 ')) {
+      // skip line 2
+    } else {
+      pendingName = line;
+    }
+  }
+  return map;
+}
+const EMBEDDED_BULK_TLE = `Canyon 2
+1 03889U 69036A   22058.58164633 0.00000000  00000-0  00000-0 0    08
+2 03889  10.3920  54.5705 0924613 151.8146 208.1854  1.00414653    04
+Rhyolite 1
+1 04418U 70046A   21151.91249899 0.00000000  00000-0  00000-0 0    08
+2 04418   2.4659 282.9236 0010125 170.3685 189.6626  1.00263758    06`;
+
+async function loadBulkTLE(){
+  SAT_NAMES = parseBulkTLE(EMBEDDED_BULK_TLE);
+  const candidates = ['bulk.tle', './bulk.tle', 'bulk.txt', './bulk.txt'];
+  for (const url of candidates) {
+    try {
+      const res = await fetch(url, {cache:'no-store'});
+      if (res.ok) {
+        const text = await res.text();
+        const parsed = parseBulkTLE(text);
+        if (Object.keys(parsed).length) {
+          SAT_NAMES = parsed;
+          return;
+        }
+      }
+    } catch(e) {}
+  }
+}
 
 /* Classic constellation stick figures: [ra_deg, dec_deg] vertices (independent of HIP catalog) */
 const CONSTELLATIONS = {
@@ -693,14 +1913,92 @@ const CONSTELLATIONS = {
 
 const colors=['#38bdf8','#4ade80','#f472b6','#facc15','#a78bfa','#fb923c','#2dd4bf','#f87171'];
 
-function computePosition(obs,altKm,obsObj){
-  const o=obsObj||observer;
-  const dir=raDecToECEFUnit(obs.ra,obs.dec,gmst(dateToJD(obs.utc)));
-  const obsECEF=geodeticToECEF(o.lat,o.lon,o.alt);
-  const pos=raySphereIntersect(obsECEF,dir,RE+altKm);
-  if(!pos) return null;
-  const ll=ecefToLatLon(pos);
-  return {...pos,lat:ll.lat,lon:ll.lon};
+/** Slant range [km] between observer and satellite ECEF */
+function slantRangeKm(satECEF, obsObj){
+  const o = obsObj || observer;
+  const obsECEF = geodeticToECEF(o.lat, o.lon, o.alt);
+  const dx = satECEF.x - obsECEF.x, dy = satECEF.y - obsECEF.y, dz = satECEF.z - obsECEF.z;
+  return Math.sqrt(dx * dx + dy * dy + dz * dz);
+}
+
+/**
+ * Position from optical LOS + slant range ρ [km]:
+ * r = r_obs + ρ * û_IOD
+ */
+function computePositionFromSlantRange(obs, rhoKm, obsObj){
+  if (!(rhoKm > 1)) return null;
+  const o = obsObj || observer;
+  const jd = dateToJD(obs.utc || new Date(obs.timeMs));
+  const gst = gmst(jd);
+  const dir = raDecToECEFUnit(obs.ra, obs.dec, gst);
+  const dn = vNorm(dir);
+  if (dn < 1e-14) return null;
+  const ux = dir.x / dn, uy = dir.y / dn, uz = dir.z / dn;
+  const obsECEF = geodeticToECEF(o.lat, o.lon, o.alt);
+  const pos = {
+    x: obsECEF.x + rhoKm * ux,
+    y: obsECEF.y + rhoKm * uy,
+    z: obsECEF.z + rhoKm * uz
+  };
+  const ll = ecefToLatLon(pos);
+  const h = Math.sqrt(pos.x * pos.x + pos.y * pos.y + pos.z * pos.z) - RE;
+  return {
+    ...pos, lat: ll.lat, lon: ll.lon,
+    ra: obs.ra, dec: obs.dec, timeMs: obs.timeMs,
+    slantRange: rhoKm, altitude: h
+  };
+}
+
+/**
+ * Geocentric position from optical observation ∩ altitude sphere
+ * (IOD-only when no TLE slant range).
+ */
+function computePosition(obs, altKm, obsObj){
+  const o = obsObj || observer;
+  const jd = dateToJD(obs.utc || new Date(obs.timeMs));
+  const gst = gmst(jd);
+  const dir = raDecToECEFUnit(obs.ra, obs.dec, gst);
+  const obsECEF = geodeticToECEF(o.lat, o.lon, o.alt);
+  const pos = raySphereIntersect(obsECEF, dir, RE + altKm);
+  if (!pos) return null;
+  const ll = ecefToLatLon(pos);
+  const rho = slantRangeKm(pos, o);
+  return {
+    ...pos, lat: ll.lat, lon: ll.lon,
+    ra: obs.ra, dec: obs.dec, timeMs: obs.timeMs,
+    slantRange: rho, altitude: altKm
+  };
+}
+
+function computePositionAtTime(obsList, t, altKm, obsObj){
+  if (!obsList || !obsList.length) return null;
+  if (obsList.length === 1 || t <= obsList[0].timeMs) {
+    return computePosition(obsList[0], altKm, obsObj);
+  }
+  if (t >= obsList[obsList.length - 1].timeMs) {
+    return computePosition(obsList[obsList.length - 1], altKm, obsObj);
+  }
+  let i = 0;
+  while (i < obsList.length - 1 && obsList[i + 1].timeMs < t) i++;
+  const a = obsList[i], b = obsList[i + 1];
+  const dt = b.timeMs - a.timeMs;
+  const frac = dt > 0 ? (t - a.timeMs) / dt : 0;
+  const { ra, dec } = interpRaDec(a.ra, a.dec, b.ra, b.dec, frac);
+  return computePosition({ ra, dec, utc: new Date(t), timeMs: t }, altKm, obsObj);
+}
+
+/** Interpolated RA/Dec observation at time t */
+function interpObsAtTime(obsList, t){
+  if (!obsList || !obsList.length) return null;
+  if (obsList.length === 1 || t <= obsList[0].timeMs) return obsList[0];
+  if (t >= obsList[obsList.length - 1].timeMs) return obsList[obsList.length - 1];
+  let i = 0;
+  while (i < obsList.length - 1 && obsList[i + 1].timeMs < t) i++;
+  const a = obsList[i], b = obsList[i + 1];
+  const dt = b.timeMs - a.timeMs;
+  const frac = dt > 0 ? (t - a.timeMs) / dt : 0;
+  const { ra, dec } = interpRaDec(a.ra, a.dec, b.ra, b.dec, frac);
+  return { ra, dec, utc: new Date(t), timeMs: t, object: a.object };
 }
 
 function unwrapLongitudes(latlngs){
@@ -720,7 +2018,8 @@ function unwrapLongitudes(latlngs){
 /* ============================================================
    3D Globe – equator horizontal, drag right = turn right
    ============================================================ */
-let scene,camera,renderer,earth,earthGroup,satGroup,orbitGroup,obsMarker,equatorLine;
+let earth,satGroup,orbitGroup,obsMarker,equatorLine;
+// scene, camera, renderer, earthGroup, globeStarMat declared with var above
 let globeDistance=3.2;
 let globeLon = 0;
 let globeLat = 0;
@@ -730,7 +2029,9 @@ function initGlobe(){
   scene=new THREE.Scene();
   camera=new THREE.PerspectiveCamera(45,1,0.1,1000);
   camera.position.set(0,0,globeDistance);
-  renderer=new THREE.WebGLRenderer({antialias:true,alpha:true});
+  renderer=new THREE.WebGLRenderer({antialias:true,alpha:false});
+  const gbg = getThemeMode() === 'light' ? 0xd1d5db : 0x000000;
+  renderer.setClearColor(gbg, 1);
   renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
   globeContainer.appendChild(renderer.domElement);
 
@@ -765,7 +2066,12 @@ function initGlobe(){
     starPos.push(r*Math.sin(ph)*Math.cos(th),r*Math.sin(ph)*Math.sin(th),r*Math.cos(ph));
   }
   const sg=new THREE.BufferGeometry(); sg.setAttribute('position',new THREE.Float32BufferAttribute(starPos,3));
-  scene.add(new THREE.Points(sg,new THREE.PointsMaterial({color:0xffffff,size:0.08})));
+  globeStarMat = new THREE.PointsMaterial({
+    color: getThemeMode() === 'light' ? 0x6b7280 : 0xffffff,
+    size: 0.08
+  });
+  scene.add(new THREE.Points(sg, globeStarMat));
+  scene.background = new THREE.Color(getThemeMode() === 'light' ? 0xd1d5db : 0x000000);
 
   satGroup=new THREE.Group(); orbitGroup=new THREE.Group();
   earthGroup.add(satGroup); earthGroup.add(orbitGroup);
@@ -785,9 +2091,17 @@ function initGlobe(){
   function onGlobePointerMove(x, y){
     if (!dragging) return;
     const dx = x - px, dy = y - py;
-    globeLon -= dx * 0.005;
-    globeLat += dy * 0.005;
-    globeLat = Math.max(-Math.PI/2+0.05, Math.min(Math.PI/2-0.05, globeLat));
+    // Rotate around the focused station: left/right = spin, up/down = tilt
+    const w = Math.max(gEl.clientWidth, 1);
+    const h = Math.max(gEl.clientHeight, 1);
+    const sensX = (2.0 * Math.PI) / w;   // horizontal: full turn across width
+    const sensY = (1.2 * Math.PI) / h;   // vertical: easier tilt (was too stiff)
+    globeLon -= dx * sensX;
+    globeLat += dy * sensY;
+    // Soft clamp — still allow near-polar views
+    const lim = Math.PI / 2 - 0.05;
+    if (globeLat > lim) globeLat = lim;
+    if (globeLat < -lim) globeLat = -lim;
     applyGlobeRotation();
     px = x; py = y;
   }
@@ -836,13 +2150,49 @@ function initGlobe(){
     camera.position.set(0,0,globeDistance);
   }, {passive:false});
 
+  // Hover / click sat label when “Sat labels” is off
+  const globeRay = new THREE.Raycaster();
+  const globePtr = new THREE.Vector2();
+  function pickGlobeSat(clientX, clientY){
+    const rect = gEl.getBoundingClientRect();
+    globePtr.x = ((clientX - rect.left) / rect.width) * 2 - 1;
+    globePtr.y = -((clientY - rect.top) / rect.height) * 2 + 1;
+    globeRay.setFromCamera(globePtr, camera);
+    const hits = globeRay.intersectObjects(satGroup.children, true);
+    for (const h of hits) {
+      if (h.object.userData && h.object.userData.isSat) return h.object.userData.satId;
+    }
+    return null;
+  }
+  gEl.addEventListener('pointermove', e=>{
+    if (showSatLabels || dragging || pinchDist) return;
+    const id = pickGlobeSat(e.clientX, e.clientY);
+    if (id !== hoveredSatId) {
+      hoveredSatId = id;
+      updateSimulation();
+    }
+  });
+  gEl.addEventListener('pointerleave', ()=>{
+    if (!showSatLabels && hoveredSatId) {
+      hoveredSatId = null;
+      updateSimulation();
+    }
+  });
+  gEl.addEventListener('click', e=>{
+    if (showSatLabels) return;
+    const id = pickGlobeSat(e.clientX, e.clientY);
+    hoveredSatId = id;
+    updateSimulation();
+  });
+
   new ResizeObserver(resizeGlobe).observe(globeContainer);
   resizeGlobe();
   (function loop(){requestAnimationFrame(loop);renderer.render(scene,camera)})();
 }
 
 function applyGlobeRotation(){
-  // YXZ: yaw (longitude) then pitch (latitude) — keeps equator horizontal
+  // YXZ: yaw then pitch — keeps equator roughly horizontal while dragging
+  if (!earthGroup) return;
   earthGroup.rotation.order = 'YXZ';
   earthGroup.rotation.set(globeLat, globeLon, 0);
 }
@@ -870,71 +2220,60 @@ function drawOrbit(points,color){
 function updateGlobePositions(positions){
   while(satGroup.children.length)satGroup.remove(satGroup.children[0]);
   const scale=1/RE;
-  const r=0.028*satSize;
+  const r=Math.max(0.006, 0.028*satSize);
   positions.forEach(p=>{
     if(!p) return;
     const m=new THREE.Mesh(new THREE.SphereGeometry(r,12,12),new THREE.MeshBasicMaterial({color:p.color}));
     m.position.set(p.x*scale, p.z*scale, -p.y*scale);
+    m.userData = { satId: p.id, isSat: true };
     satGroup.add(m);
+    const labelText = satDisplayLabel(p.labelId || p.id);
+    const show = showSatLabels || hoveredSatId === p.id;
+    if (show) {
+      const sp = createSatLabelSprite(labelText, p.color || '#e2e8f0', 'globe');
+      sp.position.set(p.x*scale, p.z*scale + r*4 + 0.02, -p.y*scale);
+      sp.userData = { satId: p.id, isSatLabel: true };
+      satGroup.add(sp);
+    }
   });
   const o=geodeticToECEF(observer.lat,observer.lon,observer.alt);
   obsMarker.position.set(o.x*scale, o.z*scale, -o.y*scale);
-  obsMarker.scale.setScalar(satSize);
+  obsMarker.scale.setScalar(Math.max(0.4, satSize));
 }
 
 /**
- * Auto-focus globe on observer station + IOD satellite positions.
- * Markers use Three.js coords: (ecef.x, ecef.z, -ecef.y).
- * Camera looks from +Z; equator stays horizontal (no roll).
+ * Center globe on observer station using the same Euler angles as drag.
+ * Avoids quaternion→euler conversion which made tilt feel stuck / inverted.
+ *
+ * Markers use Three.js (ecef.x, ecef.z, -ecef.y). Camera is on +Z looking at origin.
+ * For lat=0,lon=0 the point is (1,0,0); Ry(-π/2) brings it to (0,0,1).
  */
 function focusGlobeOnData(){
-  const pts = [];
+  if (!earthGroup || !camera) return;
 
-  Object.values(satellites).forEach(sat => {
-    const alt = sat.estimatedAlt != null ? sat.estimatedAlt : fallbackAlt;
-    sat.obs.forEach(o => {
-      const p = computePosition(o, alt);
-      if (p) pts.push(p);
-    });
-  });
-  pts.push(geodeticToECEF(observer.lat, observer.lon, observer.alt));
-  if (pts.length === 0) return;
+  const latR = observer.lat * DEG;
+  const lonR = observer.lon * DEG;
 
-  let cx=0, cy=0, cz=0;
-  pts.forEach(p => { cx += p.x; cy += p.y; cz += p.z; });
-  cx /= pts.length; cy /= pts.length; cz /= pts.length;
-
-  const r = Math.sqrt(cx*cx + cy*cy + cz*cz) || 1;
-  const lat = Math.asin(Math.max(-1, Math.min(1, cz / r))); // rad
-  const lon = Math.atan2(cy, cx);                           // rad
-
-  // Map ECEF → Three.js (x, z, -y). Point at (lat,lon) should face +Z (camera).
-  // Unrotated Three.js vector: (cosL cosλ, sinL, -cosL sinλ)
-  // Rotation Y by (-lon - π/2) then X by lat brings it to ~+Z with equator level.
-  globeLon = -lon - Math.PI / 2;
-  globeLat = lat;
+  // Match drag convention (YXZ): pitch = lat, yaw = -lon - π/2
+  globeLat = latR;
+  globeLon = -lonR - Math.PI / 2;
   applyGlobeRotation();
 
-  let maxAng = 0.15;
-  const centerDir = vUnit({x:cx, y:cy, z:cz});
-  pts.forEach(p => {
-    const d = Math.acos(Math.max(-1, Math.min(1, vDot(vUnit(p), centerDir))));
-    if (d > maxAng) maxAng = d;
-  });
-  globeDistance = Math.max(1.9, Math.min(5.5, 1.85 + maxAng * 2.8));
+  globeDistance = 2.4;
   camera.position.set(0, 0, globeDistance);
 }
 
 /* ============================================================
    Ground Map
    ============================================================ */
-let map,markersLayer,iodLayer,orbitLayer;
+// map, baseTileLayer, markersLayer, iodLayer, orbitLayer declared with var above
 function initMap(){
   map=L.map('map',{worldCopyJump:true, tap:true}).setView([20,0],2);
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png?key=cb1_3pnj_1_e9de23cbd8d3e0ce4979cf2f', {
-  attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>, &copy; <a href="https://carto.com/attributions">CARTO</a>',
-  subdomains: 'abcd', maxZoom: 20
-  }).addTo(map);
+  const day = getThemeMode() === 'light';
+  const url = day
+    ? 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png'
+    : 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+  baseTileLayer = L.tileLayer(url, {attribution:'© OSM © CARTO', maxZoom:18}).addTo(map);
   markersLayer=L.layerGroup().addTo(map);
   iodLayer=L.layerGroup().addTo(map);
   orbitLayer=L.layerGroup().addTo(map);
@@ -949,7 +2288,7 @@ function fitMapToData(iodTracks){
 function updateMap(positions,orbitTracks,iodTracks){
   markersLayer.clearLayers(); iodLayer.clearLayers(); orbitLayer.clearLayers();
   L.circleMarker([observer.lat,observer.lon],{
-    radius:7*satSize,color:'#fbbf24',fillColor:'#fbbf24',fillOpacity:0.95
+    radius:Math.max(3, 7*satSize),color:'#fbbf24',fillColor:'#fbbf24',fillOpacity:0.95
   }).addTo(markersLayer).bindPopup('Observer');
 
   (orbitTracks||[]).forEach(tr=>{
@@ -967,39 +2306,87 @@ function updateMap(positions,orbitTracks,iodTracks){
       L.polyline(unwrapped, {color:tr.color, weight:3.5, opacity:0.95}).addTo(iodLayer);
     }
     (tr.latlngs||[]).forEach(ll=>{
-      L.circleMarker(ll,{radius:4.5*satSize,color:tr.color,fillColor:tr.color,fillOpacity:1}).addTo(iodLayer);
+      L.circleMarker(ll,{radius:Math.max(2, 4.5*satSize),color:tr.color,fillColor:tr.color,fillOpacity:1}).addTo(iodLayer);
     });
   });
 
   positions.forEach(p=>{
     if(!p||p.lat==null) return;
-    L.circleMarker([p.lat,p.lon],{
-      radius:8*satSize,color:p.color,fillColor:'#fff',fillOpacity:0.9,weight:2
+    const label = satDisplayLabel(p.labelId || p.id);
+    const mk = L.circleMarker([p.lat,p.lon],{
+      radius:Math.max(3, 8*satSize),color:p.color,fillColor:'#fff',fillOpacity:0.9,weight:2
     }).addTo(markersLayer);
+    // Always available on click (mobile) / hover (PC)
+    mk.bindPopup('<span style="font-size:11px">'+label+'</span>');
+    if (showSatLabels) {
+      mk.bindTooltip(label, {
+        permanent: true, direction: 'top', offset: [0, -6],
+        className: 'sat-label-tip', opacity: 0.95
+      });
+    } else {
+      mk.bindTooltip(label, {
+        permanent: false, direction: 'top', offset: [0, -6],
+        className: 'sat-label-tip', opacity: 0.95
+      });
+    }
   });
 }
 
 /* ============================================================
    Sky View – zoom-driven magnitude LOD from hip_stars.csv
    ============================================================ */
-let skyScene,skyCamera,skyRenderer,skySatGroup,skyTrailGroup,skyLabelGroup;
-let skyStarGroup, skyConstGroup, skyAltGroup;
+// skyScene, skyCamera, skyRenderer, skyGroundMat, groups declared with var above
 let skyAz=0, skyEl=45;
 const skyContainer=document.getElementById('sky-container');
 
 function createTextSprite(text,col,scale=1){
   const c=document.createElement('canvas');
-  c.width=512; c.height=128;
+  c.width=768; c.height=96;
   const ctx=c.getContext('2d');
+  ctx.fillStyle='rgba(0,0,0,0.45)';
+  ctx.font='500 36px system-ui,Segoe UI,Arial,sans-serif';
+  const metrics = ctx.measureText(String(text));
+  const textW = Math.min(740, metrics.width + 24);
+  ctx.fillRect((768-textW)/2, 28, textW, 44);
   ctx.fillStyle=col;
-  ctx.font='bold 80px Arial';
   ctx.textAlign='center'; ctx.textBaseline='middle';
-  ctx.fillText(text,256,64);
+  ctx.fillText(String(text), 384, 50);
   const tex=new THREE.CanvasTexture(c);
   const mat=new THREE.SpriteMaterial({map:tex,transparent:true,depthTest:false});
   const sp=new THREE.Sprite(mat);
-  sp.scale.set(18*scale,4.5*scale,1);
+  sp.scale.set(14*scale, 1.75*scale, 1);
   return sp;
+}
+/** Compact sat name/NORAD label (~map tooltip size). view: 'globe' | 'sky' */
+function createSatLabelSprite(text, col, view){
+  const c = document.createElement('canvas');
+  c.width = 512; c.height = 64;
+  const ctx = c.getContext('2d');
+  // ~10–11px feel like Leaflet .sat-label-tip
+  ctx.font = '600 22px system-ui,Segoe UI,Arial,sans-serif';
+  const t = String(text);
+  const w = Math.min(500, ctx.measureText(t).width + 16);
+  ctx.fillStyle = 'rgba(0,0,0,0.55)';
+  ctx.fillRect((512 - w) / 2, 16, w, 32);
+  ctx.fillStyle = col || '#e2e8f0';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(t, 256, 32);
+  const tex = new THREE.CanvasTexture(c);
+  const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false });
+  const sp = new THREE.Sprite(mat);
+  // Globe: small (near Earth unit sphere). Sky: larger for readability.
+  if (view === 'sky') sp.scale.set(22, 2.75, 1);
+  else sp.scale.set(0.22, 0.028, 1);
+  return sp;
+}
+function updateSkyFovLabel(){
+  const el = document.getElementById('sky-view-label');
+  if (!el || !skyCamera) return;
+  // Viewer look direction = skyAz (azimuth) / skyEl (altitude)
+  const az = ((skyAz % 360) + 360) % 360;
+  el.textContent = 'Sky · FOV ' + skyCamera.fov.toFixed(0) +
+    '° · Az ' + az.toFixed(1) + '° · Alt ' + skyEl.toFixed(1) + '°';
 }
 function azElToSky(az,el,r=85){
   const azR=az*DEG, elR=el*DEG;
@@ -1046,9 +2433,12 @@ function buildAltitudeCircles(){
 
 function initSky(){
   skyScene = new THREE.Scene();
-  skyScene.background = new THREE.Color(0x030712);
+  const day = getThemeMode() === 'light';
+  const skyCol = day ? 0xf1f5f9 : 0x030712;
+  skyScene.background = new THREE.Color(skyCol);
   skyCamera = new THREE.PerspectiveCamera(65,1,0.1,500);
-  skyRenderer = new THREE.WebGLRenderer({antialias:true});
+  skyRenderer = new THREE.WebGLRenderer({antialias:true, alpha:false});
+  skyRenderer.setClearColor(skyCol, 1);
   skyRenderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
   skyContainer.appendChild(skyRenderer.domElement);
 
@@ -1065,8 +2455,11 @@ function initSky(){
 
   buildAltitudeCircles();
 
-  const ground = new THREE.Mesh(new THREE.CircleGeometry(130,64),
-    new THREE.MeshBasicMaterial({color:0x000000, side:THREE.DoubleSide}));
+  skyGroundMat = new THREE.MeshBasicMaterial({
+    color: day ? 0x9ca3af : 0x000000,
+    side: THREE.DoubleSide
+  });
+  const ground = new THREE.Mesh(new THREE.CircleGeometry(130,64), skyGroundMat);
   ground.rotation.x = -Math.PI/2; ground.position.y = -0.8;
   skyScene.add(ground);
 
@@ -1081,8 +2474,8 @@ function initSky(){
   [{az:0,t:'N',c:'#f87171'},{az:90,t:'E',c:'#4ade80'},
    {az:180,t:'S',c:'#38bdf8'},{az:270,t:'W',c:'#facc15'}].forEach(d=>{
     const rad=d.az*DEG;
-    const sp=createTextSprite(d.t,d.c,1.3);
-    sp.position.set(Math.sin(rad)*90,8,-Math.cos(rad)*90);
+    const sp=createTextSprite(d.t,d.c,2.4); // larger NESW
+    sp.position.set(Math.sin(rad)*88, 12, -Math.cos(rad)*88);
     skyScene.add(sp);
   });
 
@@ -1102,6 +2495,7 @@ function initSky(){
     skyEl = Math.max(5, Math.min(89, skyEl));
     px = e.clientX; py = e.clientY;
     updateSkyCamera();
+    updateSkyFovLabel();
   });
   sEl.addEventListener('pointerup', ()=>{ dragging=false; pinchDist=0; });
   sEl.addEventListener('pointercancel', ()=>{ dragging=false; pinchDist=0; });
@@ -1123,6 +2517,7 @@ function initSky(){
       const delta = (pinchDist - d) * 0.08;
       skyCamera.fov = Math.max(25, Math.min(100, skyCamera.fov + delta));
       skyCamera.updateProjectionMatrix();
+      updateSkyFovLabel();
       pinchDist = d;
       updateSimulation();
     }
@@ -1134,12 +2529,47 @@ function initSky(){
   sEl.addEventListener('wheel', e=>{
     skyCamera.fov = Math.max(25, Math.min(100, skyCamera.fov + e.deltaY*0.05));
     skyCamera.updateProjectionMatrix();
+    updateSkyFovLabel();
     updateSimulation();
   }, {passive:true});
+
+  const skyRay = new THREE.Raycaster();
+  const skyPtr = new THREE.Vector2();
+  function pickSkySat(clientX, clientY){
+    const rect = sEl.getBoundingClientRect();
+    skyPtr.x = ((clientX - rect.left) / rect.width) * 2 - 1;
+    skyPtr.y = -((clientY - rect.top) / rect.height) * 2 + 1;
+    skyRay.setFromCamera(skyPtr, skyCamera);
+    const hits = skyRay.intersectObjects(skySatGroup.children, true);
+    for (const h of hits) {
+      if (h.object.userData && h.object.userData.isSat) return h.object.userData.satId;
+    }
+    return null;
+  }
+  sEl.addEventListener('pointermove', e=>{
+    if (showSatLabels || dragging || pinchDist) return;
+    const id = pickSkySat(e.clientX, e.clientY);
+    if (id !== hoveredSatId) {
+      hoveredSatId = id;
+      updateSimulation();
+    }
+  });
+  sEl.addEventListener('pointerleave', ()=>{
+    if (!showSatLabels && hoveredSatId) {
+      hoveredSatId = null;
+      updateSimulation();
+    }
+  });
+  sEl.addEventListener('click', e=>{
+    if (showSatLabels) return;
+    hoveredSatId = pickSkySat(e.clientX, e.clientY);
+    updateSimulation();
+  });
 
   new ResizeObserver(resizeSky).observe(skyContainer);
   resizeSky();
   updateSkyCamera();
+  updateSkyFovLabel();
   (function loop(){requestAnimationFrame(loop);skyRenderer.render(skyScene,skyCamera)})();
 }
 function resizeSky(){
@@ -1168,15 +2598,22 @@ function focusSkyOnData(){
   const lst = (gmst(jd) + observer.lon + 360) % 360;
   let sumAz = 0, sumEl = 0, count = 0;
   Object.values(satellites).forEach(sat=>{
-    sat.obs.forEach(o=>{
-      const {az, el} = raDecToAzEl(o.ra, o.dec, observer.lat, lst);
-      if(el > -5){ sumAz += az; sumEl += el; count++; }
-    });
+    if (sat.source === 'tle' && sat.tle) {
+      const p = propagateTLE(sat.tle, simTime || sat.tle.epochMs);
+      const {az, el} = ecefToAzEl(p, observer);
+      if (el > -5) { sumAz += az; sumEl += el; count++; }
+    } else if (sat.obs) {
+      sat.obs.forEach(o=>{
+        const {az, el} = raDecToAzEl(o.ra, o.dec, observer.lat, lst);
+        if(el > -5){ sumAz += az; sumEl += el; count++; }
+      });
+    }
   });
   if(count > 0){
     skyAz = sumAz / count;
     skyEl = Math.max(15, Math.min(75, sumEl / count));
     updateSkyCamera();
+    updateSkyFovLabel();
   }
 }
 
@@ -1203,9 +2640,18 @@ function updateSkyView(positions, satellites){
     if (el < -2) continue;
 
     const pos = azElToSky(az, el, 92);
-    const size = Math.max(0.12, 0.85 - s.mag * 0.07);
-    const b = Math.max(0.3, 1.15 - (s.mag + 1) * 0.1);
-    const mat = new THREE.MeshBasicMaterial({color: new THREE.Color(b, b, b*0.95)});
+    const size = Math.max(0.05, 0.38 - s.mag * 0.035); // smaller star dots
+    const day = getThemeMode() === 'light';
+    let starCol;
+    if (day) {
+      // Day: dark grey stars on white sky
+      const g = Math.max(0.25, 0.55 - s.mag * 0.04);
+      starCol = new THREE.Color(g, g, g);
+    } else {
+      const b = Math.max(0.3, 1.15 - (s.mag + 1) * 0.1);
+      starCol = new THREE.Color(b, b, b*0.95);
+    }
+    const mat = new THREE.MeshBasicMaterial({color: starCol});
     const mesh = new THREE.Mesh(new THREE.SphereGeometry(size, 6, 6), mat);
     mesh.position.copy(pos);
     skyStarGroup.add(mesh);
@@ -1261,13 +2707,51 @@ function updateSkyView(positions, satellites){
     statusEl.textContent = `Stars: ${drawn} visible (mag < ${limit.toFixed(1)})`;
   }
 
-  // Satellite trails
+  // Satellite trails (IOD sight lines + TLE path in sky)
   Object.values(satellites).forEach(sat=>{
+    if (sat.visible === false) return;
     const pts=[];
-    sat.obs.forEach(o=>{
-      const {az,el}=raDecToAzEl(o.ra,o.dec,lat,lst);
-      if(el>-5) pts.push(azElToSky(az,el));
-    });
+    if (sat.source === 'tle' && sat.tle) {
+      const win = getIODTrackWindow();
+      let t0, t1;
+      if (win) {
+        t0 = win.start; t1 = win.end;
+      } else {
+        const periodMs = sat.tle.periodMin * 60 * 1000;
+        t0 = simTime - periodMs / 2;
+        t1 = simTime + periodMs / 2;
+      }
+      for (let i = 0; i <= 80; i++) {
+        const t = t0 + (i / 80) * (t1 - t0);
+        const ecef = propagateTLE(sat.tle, t);
+        if (!ecef) continue;
+        const {az, el} = ecefToAzEl(ecef, observer);
+        if (el > -5) pts.push(azElToSky(az, el));
+      }
+    } else if (sat.obs && sat.obs.length) {
+      // IOD trail: each observation at its own epoch LST (path as actually seen)
+      for (let i = 0; i < sat.obs.length; i++) {
+        const o = sat.obs[i];
+        const jdO = dateToJD(o.utc || new Date(o.timeMs));
+        const lstO = (gmst(jdO) + observer.lon + 360) % 360;
+        const { az, el } = raDecToAzEl(o.ra, o.dec, lat, lstO);
+        if (el > -5) pts.push(azElToSky(az, el));
+        // Dense samples between observations
+        if (i < sat.obs.length - 1) {
+          const o2 = sat.obs[i + 1];
+          const nStep = 8;
+          for (let s = 1; s < nStep; s++) {
+            const frac = s / nStep;
+            const { ra, dec } = interpRaDec(o.ra, o.dec, o2.ra, o2.dec, frac);
+            const tMid = o.timeMs + frac * (o2.timeMs - o.timeMs);
+            const jdM = dateToJD(new Date(tMid));
+            const lstM = (gmst(jdM) + observer.lon + 360) % 360;
+            const ae = raDecToAzEl(ra, dec, lat, lstM);
+            if (ae.el > -5) pts.push(azElToSky(ae.az, ae.el));
+          }
+        }
+      }
+    }
     if(pts.length>=2){
       skyTrailGroup.add(new THREE.Line(
         new THREE.BufferGeometry().setFromPoints(pts),
@@ -1276,25 +2760,47 @@ function updateSkyView(positions, satellites){
     }
   });
 
-  const rBall = 1.5 * satSize;
+  const rBall = Math.max(0.4, 1.5 * satSize);
   positions.forEach(p=>{
     if(!p) return;
     const sat = satellites[p.id];
-    if(!sat || !sat.obs.length) return;
-    let closest = sat.obs[0], dt = Math.abs(sat.obs[0].timeMs - simTime);
-    sat.obs.forEach(o=>{
-      const d = Math.abs(o.timeMs - simTime);
-      if(d < dt){dt = d; closest = o;}
-    });
-    const {az,el} = raDecToAzEl(closest.ra, closest.dec, lat, lst);
+    if(!sat) return;
+    let az, el;
+    if (sat.source === 'tle') {
+      const ae = ecefToAzEl(p, observer);
+      az = ae.az; el = ae.el;
+    } else {
+      // IOD: use interpolated RA/Dec at simTime with current sky LST
+      if (!sat.obs || !sat.obs.length) return;
+      let ra, dec;
+      if (p.ra != null && p.dec != null) {
+        ra = p.ra; dec = p.dec;
+      } else {
+        const usedAlt = sat.estimatedAlt != null ? sat.estimatedAlt : fallbackAlt;
+        const pi = computePositionAtTime(sat.obs, simTime, usedAlt, observer);
+        if (!pi) return;
+        ra = pi.ra; dec = pi.dec;
+      }
+      const ae = raDecToAzEl(ra, dec, lat, lst);
+      az = ae.az; el = ae.el;
+    }
     if(el < -2) return;
     const pos = azElToSky(az, el, 82);
     const ball = new THREE.Mesh(new THREE.SphereGeometry(rBall,12,12),
       new THREE.MeshBasicMaterial({color:p.color}));
-    ball.position.copy(pos); skySatGroup.add(ball);
+    ball.position.copy(pos);
+    ball.userData = { satId: p.id, isSat: true };
+    skySatGroup.add(ball);
     const glow = new THREE.Mesh(new THREE.SphereGeometry(rBall*1.9,8,8),
       new THREE.MeshBasicMaterial({color:p.color, transparent:true, opacity:0.22}));
     glow.position.copy(pos); skySatGroup.add(glow);
+    const labelText = satDisplayLabel(p.labelId || p.id);
+    if (showSatLabels || hoveredSatId === p.id) {
+      const sp = createSatLabelSprite(labelText, p.color || '#e2e8f0', 'sky');
+      sp.position.copy(pos);
+      sp.position.y += rBall * 3 + 3;
+      skySatGroup.add(sp);
+    }
   });
 
   if(showBodies){
@@ -1318,116 +2824,391 @@ function updateSkyView(positions, satellites){
 /* ============================================================
    Core
    ============================================================ */
+/** Normalize NORAD for comparison (strip leading zeros) */
+function noradKey(id){
+  const s = String(id || '').replace(/^(iod:|tle:)/, '').replace(/\s/g, '');
+  const n = parseInt(s, 10);
+  return isFinite(n) ? String(n) : s;
+}
+
+/** Visible TLE card sharing the same NORAD as this sat (if any) */
+function findVisibleTLEForNorad(norad){
+  const key = noradKey(norad);
+  if (!key) return null;
+  for (const sat of Object.values(satellites)) {
+    if (sat.source !== 'tle' || !sat.tle || sat.visible === false) continue;
+    if (noradKey(sat.norad || sat.id) === key) return sat;
+  }
+  return null;
+}
+
+/** TLE ECEF position at timeMs for matching visible TLE, else null */
+function tleECEFAt(norad, timeMs){
+  const tleSat = findVisibleTLEForNorad(norad);
+  if (!tleSat || !tleSat.tle) return null;
+  return propagateTLE(tleSat.tle, timeMs);
+}
+
+/**
+ * Slant range [km] from matching visible TLE at timeMs:
+ * ρ = |r_TLE − r_obs|
+ */
+function tleSlantRangeAt(norad, timeMs){
+  const p = tleECEFAt(norad, timeMs);
+  if (!p) return null;
+  return slantRangeKm(p, observer);
+}
+
+/**
+ * IOD position at time: prefer TLE slant range along measured LOS;
+ * else altitude-sphere from optical estimate / fallback.
+ */
+function iodPositionAt(sat, timeMs){
+  const obsList = sat.obs;
+  if (!obsList || !obsList.length) return null;
+  const t = timeMs != null ? timeMs : simTime;
+  const stub = interpObsAtTime(obsList, t);
+  if (!stub) return null;
+
+  const norad = sat.norad || sat.id;
+  const rhoTle = tleSlantRangeAt(norad, t);
+  if (rhoTle != null && isFinite(rhoTle) && rhoTle > 10) {
+    sat.rangeFromTle = true;
+    const p = computePositionFromSlantRange(stub, rhoTle, observer);
+    if (p) return p;
+  }
+  sat.rangeFromTle = false;
+  const alt = sat.estimatedAlt != null ? sat.estimatedAlt
+    : (sat.opticalAlt != null ? sat.opticalAlt : fallbackAlt);
+  return computePositionAtTime(obsList, t, alt, observer);
+}
+
 function getSatelliteState(sat,t){
-  const obs=sat.obs; if(!obs.length) return null;
-  const usedAlt = sat.estimatedAlt != null ? sat.estimatedAlt : fallbackAlt;
-  if(t <= obs[0].timeMs){
-    const p = computePosition(obs[0], usedAlt);
-    return p ? {...p, id:obs[0].object, color:sat.color, usedAlt, incl:sat.inclination} : null;
+  // Optical IOD observations take priority when present
+  const obs = sat.obs;
+  if (obs && obs.length) {
+    // fall through to IOD path below
+  } else if (sat.tle) {
+    const p = propagateTLE(sat.tle, t);
+    if (!p) return null;
+    const alt = Math.sqrt(p.x*p.x + p.y*p.y + p.z*p.z) - RE;
+    const rho = slantRangeKm(p, observer);
+    return {
+      ...p, id: sat.id, color: sat.color,
+      usedAlt: alt, slantRange: rho,
+      incl: sat.inclination, source: 'tle'
+    };
   }
-  if(t >= obs[obs.length-1].timeMs){
-    const last = obs[obs.length-1];
-    const p = computePosition(last, usedAlt);
-    return p ? {...p, id:last.object, color:sat.color, usedAlt, incl:sat.inclination} : null;
-  }
-  let i=0; while(i < obs.length-1 && obs[i+1].timeMs < t) i++;
-  const a=obs[i], b=obs[i+1], frac=(t-a.timeMs)/(b.timeMs-a.timeMs);
-  const pa=computePosition(a,usedAlt), pb=computePosition(b,usedAlt);
-  if(!pa||!pb) return pa||pb;
-  const pos={x:pa.x+(pb.x-pa.x)*frac, y:pa.y+(pb.y-pa.y)*frac, z:pa.z+(pb.z-pa.z)*frac};
-  const ll=ecefToLatLon(pos);
-  return {...pos, lat:ll.lat, lon:ll.lon, id:a.object, color:sat.color, usedAlt, incl:sat.inclination};
+  if(!obs || !obs.length) return null;
+  const p = iodPositionAt(sat, t);
+  if (!p) return null;
+  return {
+    ...p,
+    id: sat.id,
+    color: sat.color,
+    usedAlt: p.altitude != null ? p.altitude : sat.estimatedAlt,
+    slantRange: p.slantRange,
+    incl: sat.inclination,
+    source: 'iod',
+    rangeFromTle: !!sat.rangeFromTle
+  };
 }
 
 function loadObservations(){
   const text = document.getElementById('iod-input').value;
-  const lines = text.split('\n').map(l=>l.trim()).filter(l=>l.length>20);
+  // Preserve leading spaces (IOD is fixed-column); only strip trailing whitespace
+  const rawLines = text.split(/\r?\n/)
+    .map(l => l.replace(/\r/g, '').replace(/\s+$/, ''))
+    .filter(l => l.length > 0);
+  // Remember visibility so TLE show/hide can rebuild IOD tracks without resetting cards
+  const prevVis = {};
+  Object.entries(satellites).forEach(([id, s]) => { prevVis[id] = s.visible !== false; });
   observations = []; satellites = {};
-  lines.forEach(line=>{
-    const o = parseIOD(line); if(!o) return;
-    observations.push(o);
-    if(!satellites[o.object]){
-      satellites[o.object] = {
-        obs:[], color:colors[Object.keys(satellites).length % colors.length],
-        estimatedAlt:null, eccentricity:null, inclination:null, periodMin:null,
-        orbitPoints:null, groundTrack:null, iodTrack:null
-      };
-    }
-    satellites[o.object].obs.push(o);
-  });
-  Object.values(satellites).forEach(s => s.obs.sort((a,b)=>a.timeMs-b.timeMs));
 
-  observer.lat = +document.getElementById('obs-lat').value;
-  observer.lon = +document.getElementById('obs-lon').value;
-  observer.alt = +document.getElementById('obs-alt').value;
-  fallbackAlt = +document.getElementById('sat-alt').value;
+  applyDefaultStationToObserver();
+  fallbackAlt = parseFloat(document.getElementById('sat-alt').value) || 500;
+
+  // Parse mixed IOD + TLE (optional name, line1, line2)
+  let pendingName = null;
+  for (let i = 0; i < rawLines.length; i++) {
+    const line = rawLines[i];
+    const tline = line.trim();
+    // TLE pair — always a separate card (key tle:NORAD), never merged with IOD
+    if (/^1\s/.test(tline) && i + 1 < rawLines.length && /^2\s/.test(rawLines[i + 1].trim())) {
+      const tle = parseTLE(tline, rawLines[i + 1].trim(), pendingName);
+      pendingName = null;
+      i++;
+      if (!tle) continue;
+      const norad = tle.norad.replace(/\s/g, '') || tle.norad;
+      if (tle.name) SAT_NAMES[normalizeNorad(norad)] = tle.name;
+      const tid = 'tle:' + norad;
+      if (!satellites[tid]) {
+        satellites[tid] = {
+          id: tid, norad, source: 'tle', tle, obs: [], visible: true,
+          color: colors[Object.keys(satellites).length % colors.length],
+          estimatedAlt: tle.a - RE,
+          eccentricity: tle.ecc,
+          inclination: tle.incl,
+          periodMin: tle.periodMin,
+          orbitPoints: null, groundTrack: null, iodTrack: null
+        };
+      } else {
+        const s = satellites[tid];
+        s.tle = tle; s.visible = true; s.norad = norad;
+        s.estimatedAlt = tle.a - RE;
+        s.eccentricity = tle.ecc;
+        s.inclination = tle.incl;
+        s.periodMin = tle.periodMin;
+      }
+      continue;
+    }
+    if (/^2\s/.test(tline)) { pendingName = null; continue; }
+
+    // IOD observation — separate card (key iod:NORAD or plain NORAD)
+    const o = parseIOD(line);
+    if (o) {
+      pendingName = null;
+      observations.push(o);
+      const norad = String(o.object);
+      const oid = 'iod:' + norad;
+      if (!satellites[oid]) {
+        satellites[oid] = {
+          id: oid, norad, source: 'iod', obs: [], visible: true,
+          color: colors[Object.keys(satellites).length % colors.length],
+          estimatedAlt: null, eccentricity: null, inclination: null, periodMin: null,
+          orbitPoints: null, groundTrack: null, iodTrack: null
+        };
+      }
+      satellites[oid].obs.push(o);
+      continue;
+    }
+
+    // Possible satellite name line for following TLE
+    if (tline.length < 40 && !/^\d{5}/.test(tline) && !/^1\s/.test(tline) && !/^2\s/.test(tline)) {
+      pendingName = tline;
+    } else {
+      pendingName = null;
+    }
+  }
+
+  Object.values(satellites).forEach(s => {
+    if (s.obs && s.obs.length) s.obs.sort((a, b) => a.timeMs - b.timeMs);
+  });
+  // Restore previous show/hide state
+  Object.entries(satellites).forEach(([id, s]) => {
+    if (prevVis[id] === false) s.visible = false;
+  });
 
   clearOrbits();
-  Object.entries(satellites).forEach(([id,sat])=>{
-    if(sat.obs.length >= 2){
-      const res = estimateCircularAltitude(sat.obs, observer);
-      if(res) sat.estimatedAlt = res.altitude;
-    }
-    const alt = sat.estimatedAlt != null ? sat.estimatedAlt : fallbackAlt;
-    const elems = estimateElements(sat.obs, alt, observer);
-    if(elems){
-      sat.inclination = elems.inclination;
-      sat.eccentricity = elems.eccentricity;
-      sat.periodMin = elems.periodMin;
-      if(elems.altitude && sat.estimatedAlt == null) sat.estimatedAlt = elems.altitude;
-    }
+  Object.entries(satellites).forEach(([id, sat]) => {
+    try {
+      // Prefer optical IOD path when observations exist
+      if (sat.obs && sat.obs.length > 0) {
+        sat.source = 'iod';
+        // 1) Optical-only elements (incl/ecc/period) — never from TLE
+        let opticalAlt = null;
+        if (sat.obs.length >= 2) {
+          const res = estimateCircularAltitude(sat.obs, observer);
+          if (res) opticalAlt = res.altitude;
+        }
+        const altForElements = opticalAlt != null ? opticalAlt : fallbackAlt;
+        const elems = estimateElements(sat.obs, altForElements, observer);
+        if (elems) {
+          // Freeze IOD-only inclination (real optical geometry)
+          sat.inclination = elems.inclination;
+          sat.iodInclination = elems.inclination;
+          sat.eccentricity = elems.eccentricity;
+          sat.periodMin = elems.periodMin;
+          sat.opticalPlaneNormal = elems.planeNormal || null;
+          if (elems.altitude != null && opticalAlt == null) opticalAlt = elems.altitude;
+        }
+        sat.opticalAlt = opticalAlt;
 
-    const latlngs = [];
-    sat.obs.forEach(o=>{
-      const p = computePosition(o, sat.estimatedAlt != null ? sat.estimatedAlt : fallbackAlt);
-      if(p) latlngs.push([p.lat, p.lon]);
-    });
-    sat.iodTrack = {latlngs, color:sat.color};
-
-    if(sat.estimatedAlt != null && sat.obs.length >= 2){
-      const R = RE + sat.estimatedAlt;
-      const pA = computePosition(sat.obs[0], sat.estimatedAlt);
-      const pB = computePosition(sat.obs[Math.min(1, sat.obs.length-1)], sat.estimatedAlt);
-      if(pA && pB){
-        sat.orbitPoints = generateOrbitPoints(pA, pB, R, 180);
-        sat.groundTrack = sat.orbitPoints.map(p=>{
-          const ll = ecefToLatLon(p);
-          return {lat:ll.lat, lon:ll.lon};
-        });
-        sat.groundTrack.color = sat.color;
-        drawOrbit(sat.orbitPoints, sat.color);
+        // 2) Matching TLE: slant range + eccentricity for track (inclination stays IOD)
+        const tleMatch = findVisibleTLEForNorad(sat.norad || sat.id);
+        sat.rangeFromTle = !!tleMatch;
+        sat.eccFromTle = false;
+        sat.estimatedAlt = opticalAlt != null ? opticalAlt : fallbackAlt;
+        if (tleMatch && tleMatch.tle) {
+          if (tleMatch.tle.ecc != null && isFinite(tleMatch.tle.ecc)) {
+            sat.eccentricity = tleMatch.tle.ecc;
+            sat.eccFromTle = true;
+          } else if (tleMatch.eccentricity != null) {
+            sat.eccentricity = tleMatch.eccentricity;
+            sat.eccFromTle = true;
+          }
+          sat.tleA = tleMatch.tle.a;
+          sat.tleE = tleMatch.tle.ecc;
+          // Representative slant range at mid-pass for card
+          const tMid = sat.obs[Math.floor(sat.obs.length / 2)].timeMs;
+          const rho0 = tleSlantRangeAt(sat.norad || sat.id, tMid);
+          if (rho0 != null) sat.slantRange = rho0;
+        } else {
+          sat.tleA = null;
+          sat.tleE = null;
+        }
+        // Dense IOD track: TLE slant range along LOS when linked, else altitude sphere
+        const latlngs = [];
+        const orbitSeg = [];
+        for (let i = 0; i < sat.obs.length; i++) {
+          const p = iodPositionAt(sat, sat.obs[i].timeMs);
+          if (p) {
+            latlngs.push([p.lat, p.lon]);
+            orbitSeg.push(p);
+            if (p.slantRange != null) sat.slantRange = p.slantRange;
+          }
+          if (i < sat.obs.length - 1) {
+            const t0 = sat.obs[i].timeMs, t1 = sat.obs[i + 1].timeMs;
+            const nStep = Math.max(2, Math.min(24, Math.round((t1 - t0) / 5000)));
+            for (let s = 1; s < nStep; s++) {
+              const t = t0 + (s / nStep) * (t1 - t0);
+              const pi = iodPositionAt(sat, t);
+              if (pi) {
+                latlngs.push([pi.lat, pi.lon]);
+                orbitSeg.push(pi);
+              }
+            }
+          }
+        }
+        sat.iodTrack = { latlngs, color: sat.color, solid: true };
+        // Orbital plane: IOD plane (inclination) + TLE a,e when linked, else circular at optical alt
+        const hOpt = opticalAlt != null ? opticalAlt : fallbackAlt;
+        if (sat.obs.length >= 2) {
+          // Plane from optical positions (inclination from IOD)
+          const pA = computePosition(sat.obs[0], hOpt, observer);
+          const pB = computePosition(sat.obs[sat.obs.length - 1], hOpt, observer);
+          if (pA && pB) {
+            if (sat.eccFromTle && sat.tleA > RE && sat.tleE != null) {
+              sat.orbitPoints = generateEllipticalOrbitPoints(pA, pB, sat.tleA, sat.tleE, 200);
+            } else if (hOpt > 50) {
+              sat.orbitPoints = generateOrbitPoints(pA, pB, RE + hOpt, 200);
+            }
+            if (sat.orbitPoints) {
+              sat.groundTrack = sat.orbitPoints.map(p => {
+                const ll = ecefToLatLon(p);
+                return { lat: ll.lat, lon: ll.lon };
+              });
+              sat.groundTrack.color = sat.color;
+              drawOrbit(sat.orbitPoints, sat.color);
+            }
+          }
+        } else if (orbitSeg.length >= 2) {
+          sat.orbitPoints = orbitSeg.map(p => ({ x: p.x, y: p.y, z: p.z }));
+          drawOrbit(sat.orbitPoints, sat.color);
+        }
+        return;
       }
+
+      // Pure TLE card
+      if (sat.source === 'tle' && sat.tle) {
+        refreshTLEOrbit(sat, simTime || sat.tle.epochMs);
+        if (sat.orbitPoints) drawOrbit(sat.orbitPoints, sat.color);
+      }
+    } catch (err) {
+      console.warn('Orbit build failed for', id, err);
     }
   });
 
-  if(observations.length === 0){
-    document.getElementById('status').textContent = 'No valid IOD lines';
+  const hasAny = Object.keys(satellites).length > 0;
+  if (!hasAny) {
+    document.getElementById('status').textContent = 'No valid IOD or TLE data';
     return;
   }
-  minTime = Math.min(...observations.map(o=>o.timeMs));
-  maxTime = Math.max(...observations.map(o=>o.timeMs));
-  if(maxTime - minTime < 5*60*1000) maxTime = minTime + 5*60*1000;
-  simTime = minTime;
+
+  // Time slider: first IOD → last IOD; if equal, last = first + 5 min
+  // (TLE-only: epoch ± half period)
+  if (observations.length > 0) {
+    const iodTimes = observations.map(o => o.timeMs).filter(isFinite);
+    minTime = Math.min(...iodTimes);
+    maxTime = Math.max(...iodTimes);
+    if (maxTime <= minTime) maxTime = minTime + 5 * 60 * 1000;
+    simTime = minTime;
+  } else {
+    const times = [];
+    Object.values(satellites).forEach(sat => {
+      if (sat.tle) {
+        const half = Math.max(sat.tle.periodMin * 60 * 1000, 30 * 60 * 1000);
+        times.push(sat.tle.epochMs - half);
+        times.push(sat.tle.epochMs + half);
+      }
+    });
+    if (times.length) {
+      minTime = Math.min(...times);
+      maxTime = Math.max(...times);
+    } else {
+      minTime = Date.now();
+      maxTime = minTime + 5 * 60 * 1000;
+    }
+    if (maxTime - minTime < 5 * 60 * 1000) maxTime = minTime + 5 * 60 * 1000;
+    simTime = minTime;
+  }
   document.getElementById('time-slider').value = 0;
 
   const list = document.getElementById('sat-list');
   list.innerHTML = '';
-  Object.entries(satellites).forEach(([id,s])=>{
+  Object.entries(satellites).forEach(([id, s]) => {
+    if (s.visible === undefined) s.visible = true;
     const div = document.createElement('div');
-    div.className = 'sat-item';
-    let html = `<div class="sat-header"><span class="dot" style="background:${s.color}"></span><strong>${id}</strong> (${s.obs.length})</div>`;
-    html += `<div class="param">Alt ≈ <span>${(s.estimatedAlt||fallbackAlt).toFixed(0)} km</span></div>`;
-    if(s.inclination != null) html += `<div class="param">Incl ≈ <span class="i">${s.inclination.toFixed(1)}°</span></div>`;
-    if(s.eccentricity != null) html += `<div class="param">Ecc ≈ <span class="e">${s.eccentricity.toFixed(4)}</span></div>`;
-    if(s.periodMin != null) html += `<div class="param">Period ≈ <span>${s.periodMin.toFixed(1)} min</span></div>`;
+    div.className = 'sat-item' + (s.visible ? '' : ' hidden-sat');
+    div.dataset.satId = id;
+    div.title = 'Click to show / hide on globe, map, and sky';
+    const norad = s.norad || id.replace(/^(iod:|tle:)/, '');
+    const disp = satDisplayLabel(norad);
+    const kind = s.source === 'tle' ? 'TLE' : ((s.obs && s.obs.length) + ' obs');
+    let html = `<div class="sat-header"><span class="dot" style="background:${s.visible ? s.color : '#888'}"></span><strong style="font-size:.8rem">${disp}</strong> <span style="color:var(--muted);font-size:.7rem">${s.source === 'tle' ? 'TLE' : 'IOD'}</span> (${kind})</div>`;
+    // Slant range (observer → sat); updates with time slider
+    let rangeNote = '';
+    if (s.source === 'tle') rangeNote = ' <span style="color:var(--muted);font-size:.65rem">(at slider)</span>';
+    else if (s.rangeFromTle) rangeNote = ' <span style="color:var(--accent);font-size:.65rem">(from TLE)</span>';
+    else rangeNote = ' <span style="color:var(--muted);font-size:.65rem">(est.)</span>';
+    const initRho = s.slantRange != null ? s.slantRange : 0;
+    html += `<div class="param">Slant ≈ <span class="sat-range-val" data-sat-id="${id}">${initRho > 0 ? initRho.toFixed(0) : '—'}</span> km${rangeNote}</div>`;
+    const inclShow = s.iodInclination != null ? s.iodInclination : s.inclination;
+    if (inclShow != null) {
+      html += `<div class="param">Incl ≈ <span class="i">${inclShow.toFixed(1)}°</span>` +
+        (s.source === 'iod' ? ' <span style="color:var(--muted);font-size:.65rem">(IOD)</span>' : '') +
+        `</div>`;
+    }
+    if (s.eccentricity != null) {
+      let eccNote = '';
+      if (s.source === 'iod') {
+        eccNote = s.eccFromTle
+          ? ' <span style="color:var(--accent);font-size:.65rem">(from TLE)</span>'
+          : ' <span style="color:var(--muted);font-size:.65rem">(IOD)</span>';
+      }
+      html += `<div class="param">Ecc ≈ <span class="e">${s.eccentricity.toFixed(4)}</span>${eccNote}</div>`;
+    }
+    if (s.periodMin != null) html += `<div class="param">Period ≈ <span>${s.periodMin.toFixed(1)} min</span>` +
+      (s.source === 'iod' ? ' <span style="color:var(--muted);font-size:.65rem">(IOD)</span>' : '') + `</div>`;
+    html += `<div class="vis-hint">${s.visible ? 'Visible — click to hide' : 'Hidden — click to show'}</div>`;
     div.innerHTML = html;
+    div.addEventListener('click', () => {
+      s.visible = !s.visible;
+      div.classList.toggle('hidden-sat', !s.visible);
+      const dot = div.querySelector('.dot');
+      if (dot) dot.style.background = s.visible ? s.color : '#888';
+      const hint = div.querySelector('.vis-hint');
+      if (hint) hint.textContent = s.visible ? 'Visible — click to hide' : 'Hidden — click to show';
+      // Toggling TLE visibility can change IOD altitude linking — rebuild tracks
+      if (s.source === 'tle') {
+        loadObservations();
+        return;
+      }
+      clearOrbits();
+      Object.values(satellites).forEach(sat => {
+        if (sat.visible !== false && sat.orbitPoints) drawOrbit(sat.orbitPoints, sat.color);
+      });
+      updateSimulation();
+    });
     list.appendChild(div);
   });
+  const nIod = observations.length;
+  const nTle = Object.values(satellites).filter(s => s.source === 'tle').length;
   document.getElementById('status').textContent =
-    `Loaded ${observations.length} obs • ${Object.keys(satellites).length} object(s)`;
+    `Loaded ${nIod} IOD · ${nTle} TLE · ${Object.keys(satellites).length} object(s)`;
 
-  const iodTracks = Object.values(satellites).filter(s=>s.iodTrack).map(s=>s.iodTrack);
-  setTimeout(()=>{
+  const iodTracks = Object.values(satellites).filter(s => s.iodTrack).map(s => s.iodTrack);
+  setTimeout(() => {
     fitMapToData(iodTracks);
     focusGlobeOnData();
     focusSkyOnData();
@@ -1436,15 +3217,76 @@ function loadObservations(){
   updateSimulation();
 }
 
+function updateSatCardSlantRanges(positionsById){
+  document.querySelectorAll('.sat-range-val').forEach(el => {
+    const id = el.getAttribute('data-sat-id');
+    const sat = satellites[id];
+    if (!sat) return;
+    if (sat.source === 'tle' && sat.tle) {
+      const p = positionsById && positionsById[id]
+        ? positionsById[id]
+        : propagateTLE(sat.tle, simTime);
+      if (p) {
+        const rho = p.slantRange != null ? p.slantRange : slantRangeKm(p, observer);
+        el.textContent = rho.toFixed(1);
+        sat.slantRange = rho;
+      }
+    } else if (sat.source === 'iod' && sat.obs) {
+      const p = positionsById && positionsById[id]
+        ? positionsById[id]
+        : iodPositionAt(sat, simTime);
+      if (p && p.slantRange != null) {
+        el.textContent = p.slantRange.toFixed(1);
+        sat.slantRange = p.slantRange;
+      } else if (p) {
+        const rho = slantRangeKm(p, observer);
+        el.textContent = rho.toFixed(1);
+        sat.slantRange = rho;
+      }
+    }
+  });
+}
+
 function updateSimulation(){
+  // TLE: rebuild orbital plane + ground track at current slider time
+  let needRedrawOrbits = false;
+  Object.values(satellites).forEach(sat => {
+    if (sat.visible === false) return;
+    if (sat.source === 'tle' && sat.tle) {
+      refreshTLEOrbit(sat, simTime);
+      needRedrawOrbits = true;
+    }
+  });
+  if (needRedrawOrbits) {
+    clearOrbits();
+    Object.values(satellites).forEach(sat => {
+      if (sat.visible === false) return;
+      if (sat.orbitPoints && sat.orbitPoints.length) drawOrbit(sat.orbitPoints, sat.color);
+    });
+  }
+
+  const positionsById = {};
   const positions = Object.entries(satellites).map(([id,sat])=>{
+    if (sat.visible === false) return null;
     const st = getSatelliteState(sat, simTime);
-    if(st) st.id = id;
+    if(st) {
+      st.id = id;
+      // Labels use NORAD / name, not internal key
+      st.labelId = sat.norad || id.replace(/^(iod:|tle:)/, '');
+      positionsById[id] = st;
+    }
     return st;
   }).filter(Boolean);
 
-  const orbitTracks = Object.values(satellites).filter(s=>s.groundTrack).map(s=>s.groundTrack);
-  const iodTracks = Object.values(satellites).filter(s=>s.iodTrack).map(s=>s.iodTrack);
+  // TLE card altitude follows time slider
+  updateSatCardSlantRanges(positionsById);
+
+  const orbitTracks = Object.values(satellites)
+    .filter(s => s.visible !== false && s.groundTrack)
+    .map(s => s.groundTrack);
+  const iodTracks = Object.values(satellites)
+    .filter(s => s.visible !== false && s.iodTrack)
+    .map(s => s.iodTrack);
 
   updateGlobePositions(positions);
   updateMap(positions, orbitTracks, iodTracks);
@@ -1458,41 +3300,112 @@ function updateSimulation(){
 }
 
 function tick(now){
-  const dt = now - lastFrame;
+  requestAnimationFrame(tick);
+  if (!lastFrame) lastFrame = now;
+  // dt in ms; clamp so background tabs don't jump
+  let dt = now - lastFrame;
   lastFrame = now;
-  if(playing){
+  if (dt < 0) dt = 0;
+  if (dt > 50) dt = 50; // smooth max ~20 fps worth of advance per frame
+
+  if (playing && maxTime > minTime) {
     const speed = parseFloat(document.getElementById('speed').value) || 1;
+    // 1× = real time (1 wall-ms → 1 sim-ms)
     simTime += dt * speed;
-    if(simTime > maxTime){
-      simTime = maxTime; playing = false;
-      document.getElementById('btn-play').textContent = 'Play';
-      document.getElementById('btn-play').classList.remove('active');
-    }
-    if(simTime < minTime){
-      simTime = minTime; playing = false;
-      document.getElementById('btn-play').textContent = 'Play';
-      document.getElementById('btn-play').classList.remove('active');
+    if (simTime >= maxTime) {
+      simTime = maxTime;
+      playing = false;
+      const btn = document.getElementById('btn-play');
+      if (btn) { btn.textContent = 'Play'; btn.classList.remove('active'); }
+    } else if (simTime <= minTime) {
+      simTime = minTime;
+      playing = false;
+      const btn = document.getElementById('btn-play');
+      if (btn) { btn.textContent = 'Play'; btn.classList.remove('active'); }
     }
     updateSimulation();
   }
-  requestAnimationFrame(tick);
 }
 
 /* UI */
-document.getElementById('btn-parse').addEventListener('click', loadObservations);
+document.getElementById('btn-parse').addEventListener('click', () => {
+  loadObservations();
+  scheduleSaveAppState();
+});
 document.getElementById('btn-play').addEventListener('click', ()=>{
+  if (maxTime <= minTime) return;
   playing = !playing;
   const btn = document.getElementById('btn-play');
   btn.textContent = playing ? 'Pause' : 'Play';
   btn.classList.toggle('active', playing);
   lastFrame = performance.now();
+  // If at end, restart from beginning when pressing Play
+  if (playing && simTime >= maxTime - 1) simTime = minTime;
 });
 document.getElementById('time-slider').addEventListener('input', e=>{
+  playing = false;
+  const b = document.getElementById('btn-play');
+  if (b) { b.textContent = 'Play'; b.classList.remove('active'); }
   simTime = minTime + (+e.target.value/1000)*(maxTime-minTime);
   updateSimulation();
 });
-['obs-lat','obs-lon','obs-alt','sat-alt'].forEach(id=>{
-  document.getElementById(id).addEventListener('change', loadObservations);
+['sat-alt'].forEach(id=>{
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.addEventListener('change', () => { loadObservations(); scheduleSaveAppState(); });
+  el.addEventListener('input', scheduleSaveAppState);
+});
+const iodTa = document.getElementById('iod-input');
+if (iodTa) {
+  iodTa.addEventListener('input', scheduleSaveAppState);
+  iodTa.addEventListener('change', scheduleSaveAppState);
+}
+['sat-size-slider','mag-slider','speed'].forEach(id => {
+  const el = document.getElementById(id);
+  if (el) el.addEventListener('change', scheduleSaveAppState);
+  if (el) el.addEventListener('input', scheduleSaveAppState);
+});
+['tog-sat-labels','tog-const','tog-bodies','tog-alt'].forEach(id => {
+  const el = document.getElementById(id);
+  if (el) el.addEventListener('change', scheduleSaveAppState);
+});
+
+document.getElementById('btn-st-add')?.addEventListener('click', addOrUpdateStation);
+document.getElementById('btn-clear-data')?.addEventListener('click', clearAllAppData);
+// Initial station list UI
+renderStationList();
+applyDefaultStationToObserver();
+
+/* Fullscreen per panel */
+document.querySelectorAll('.btn-fs').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    const id = btn.getAttribute('data-fs');
+    const panel = document.getElementById(id);
+    if (!panel) return;
+    try {
+      if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+        if (panel.requestFullscreen) await panel.requestFullscreen();
+        else if (panel.webkitRequestFullscreen) panel.webkitRequestFullscreen();
+      } else {
+        if (document.exitFullscreen) await document.exitFullscreen();
+        else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+      }
+    } catch (e) { console.warn('fullscreen', e); }
+    setTimeout(() => {
+      if (typeof forceViewResize === 'function') forceViewResize();
+      if (typeof resizeGlobe === 'function') resizeGlobe();
+      if (typeof resizeSky === 'function') resizeSky();
+      if (map) try { map.invalidateSize(true); } catch (e) {}
+    }, 100);
+  });
+});
+document.addEventListener('fullscreenchange', () => {
+  setTimeout(() => {
+    if (typeof forceViewResize === 'function') forceViewResize();
+    if (typeof resizeGlobe === 'function') resizeGlobe();
+    if (typeof resizeSky === 'function') resizeSky();
+    if (map) try { map.invalidateSize(true); } catch (e) {}
+  }, 50);
 });
 
 bindStarFileInput();
@@ -1504,6 +3417,18 @@ document.getElementById('mag-slider').addEventListener('input', e=>{
 });
 document.getElementById('sat-size-slider').addEventListener('input', e=>{
   satSize = +e.target.value;
+  updateSimulation();
+});
+// Ensure toggles default ON on first run
+['tog-sat-labels','tog-const','tog-bodies','tog-alt'].forEach(id=>{
+  const el = document.getElementById(id);
+  if (el) el.checked = true;
+});
+showSatLabels = true; showConst = true; showBodies = true; showAlt = true;
+
+document.getElementById('tog-sat-labels').addEventListener('change', e=>{
+  showSatLabels = e.target.checked;
+  if (showSatLabels) hoveredSatId = null;
   updateSimulation();
 });
 document.getElementById('tog-const').addEventListener('change', e=>{
@@ -1601,7 +3526,33 @@ document.getElementById('tog-alt').addEventListener('change', e=>{
 
   tabs.forEach(t => t.addEventListener('click', () => showView(t.dataset.view)));
 
-  // Collapsible IOD input (saves space on phones)
+  function afterPanelToggle(){
+    setTimeout(() => {
+      if (typeof resizeGlobe === 'function') resizeGlobe();
+      if (typeof resizeSky === 'function') resizeSky();
+      if (map) try { map.invalidateSize(); } catch (e) {}
+    }, 50);
+  }
+
+  // Collapsible Settings panel
+  const setPanel = document.getElementById('settings-panel');
+  const setBtn = document.getElementById('btn-toggle-settings');
+  const setChev = document.getElementById('settings-chevron');
+  if (setBtn && setPanel) {
+    setBtn.addEventListener('click', () => {
+      setPanel.classList.toggle('collapsed');
+      const open = !setPanel.classList.contains('collapsed');
+      setBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+      if (setChev) setChev.textContent = open ? '▾' : '▸';
+      afterPanelToggle();
+    });
+    // Default collapsed
+    setPanel.classList.add('collapsed');
+    setBtn.setAttribute('aria-expanded', 'false');
+    if (setChev) setChev.textContent = '▸';
+  }
+
+  // Collapsible IOD input
   const panel = document.getElementById('input-panel');
   const btn = document.getElementById('btn-toggle-input');
   const chev = document.getElementById('input-chevron');
@@ -1610,18 +3561,13 @@ document.getElementById('tog-alt').addEventListener('change', e=>{
     const open = !panel.classList.contains('collapsed');
     btn.setAttribute('aria-expanded', open ? 'true' : 'false');
     chev.textContent = open ? '▾' : '▸';
-    setTimeout(() => {
-      if (typeof resizeGlobe === 'function') resizeGlobe();
-      if (typeof resizeSky === 'function') resizeSky();
-      if (map) map.invalidateSize();
-    }, 50);
+    afterPanelToggle();
   });
 
-  // Collapse input by default so Globe / Map / Sky fit on one screen.
-  // User can expand “IOD input & station” when needed.
-  panel.classList.add('collapsed');
-  btn.setAttribute('aria-expanded', 'false');
-  chev.textContent = '▸';
+  // IOD input open by default
+  panel.classList.remove('collapsed');
+  btn.setAttribute('aria-expanded', 'true');
+  chev.textContent = '▾';
 
   // Phone portrait only: tabbed single view
   const phonePortrait = window.matchMedia('(max-width:699px) and (orientation: portrait)');
@@ -1633,6 +3579,7 @@ document.getElementById('tog-alt').addEventListener('change', e=>{
 initGlobe();
 initMap();
 initSky();
+applyThemeVisuals(); // sync globe/map/sky with current day/night theme
 requestAnimationFrame(tick);
 
 function forceViewResize(){
@@ -1650,11 +3597,18 @@ requestAnimationFrame(() => {
 });
 window.addEventListener('resize', forceViewResize);
 
-// Load star catalog then parse default IOD
-loadStarCatalog().then(() => {
+// Load catalogs then parse default IOD
+Promise.all([loadStarCatalog(), loadBulkTLE()]).then(() => {
+  // Restore saved IOD/TLE, stations, and settings before first parse
+  loadAppState();
+  renderStationList();
+  applyDefaultStationToObserver();
+  applyThemeVisuals();
   loadObservations();
+  scheduleSaveAppState();
   setTimeout(forceViewResize, 200);
 });
+window.addEventListener('beforeunload', saveAppState);
 </script>
 </body>
 </html>
